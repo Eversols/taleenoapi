@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const UserProfile = sequelize.define('UserProfile', {
+  // Existing fields (keeping all your current required fields)
   fullName: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -32,7 +33,7 @@ const UserProfile = sequelize.define('UserProfile', {
   },
   languages: {
     type: DataTypes.JSON,
-    allowNull: true,
+    allowNull: true, // Keeping as optional
   },
   hourlyRate: {
     type: DataTypes.FLOAT,
@@ -40,10 +41,34 @@ const UserProfile = sequelize.define('UserProfile', {
   },
   profilePicture: {
     type: DataTypes.STRING,
+    allowNull: true, // Keeping as optional
+  },
+  
+  // New talent-related fields (making them optional initially)
+  talentType: {
+    type: DataTypes.STRING,
+    allowNull: true, // Will make false after migration
+    defaultValue: null
+  },
+  customTalent: {
+    type: DataTypes.STRING,
     allowNull: true,
+    defaultValue: null
+  },
+  experienceLevel: {
+    type: DataTypes.STRING,
+    allowNull: true, // Will make false after migration
+    defaultValue: null
+  },
+  
+  // New availability field (JSON format)
+  availabilities: {
+    type: DataTypes.JSON,
+    allowNull: true, // Will make false after migration
+    defaultValue: []
   }
 }, {
-  tableName: 'users', // optional: if your DB table is named `users`
+  tableName: 'users',
   timestamps: false
 });
 
