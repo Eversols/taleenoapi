@@ -1,14 +1,25 @@
-// controllers/profileController.js
 const UserProfile = require('../models/UserProfile');
+const { Op } = require('sequelize');
+
+// Mock location data for search
+const MOCK_LOCATIONS = [
+  "Baker Street Library",
+  "The Greenleaf Mall",
+  "Business Business Park",
+  "Business Community Center",
+  "7 Hillstreet, Avenue Birmingham, RD 350",
+  "United Kingdom",
+  "Birmingham City Centre",
+  "Ajury Location Access"
+];
 
 exports.completeProfile = async (req, res) => {
-  // Required fields from original model
   const requiredFields = [
-    'fullName', 'username', 'phoneNumber', 'gender', 
+    'fullName', 'username', 'phoneNumber', 'gender',
     'age', 'country', 'city', 'hourlyRate'
   ];
-  
-  // Check for missing required fields
+
+  // Validate required fields
   for (const field of requiredFields) {
     if (!req.body[field]) {
       return res.status(400).json({ error: `${field} is required` });
@@ -18,33 +29,38 @@ exports.completeProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const {
-      // Original fields
-      fullName, username, phoneNumber, gender, age, 
-      country, city, languages, hourlyRate, profilePicture,
+      // Personal info
+      fullName, username, phoneNumber, gender, age,
       
-      // New talent fields
+      // Location
+      country, city, useCurrentLocation, searchedLocation, 
+      selectedLocation, locationDetails,
+      
+      // Professional
+      languages, hourlyRate, profilePicture,
+      
+      // Talent
       talentType, customTalent, experienceLevel,
       
-      // New availability
+      // Availability
       availabilities
     } = req.body;
 
     // Validate talent data if provided
     if (talentType) {
       if (talentType === 'Other' && !customTalent) {
-        return res.status(400).json({ error: 'customTalent is required when talentType is Other' });
+        return res.status(400).json({ error: 'Custom talent is required when selecting "Other"' });
       }
       if (!experienceLevel) {
-        return res.status(400).json({ error: 'experienceLevel is required with talentType' });
+        return res.status(400).json({ error: 'Experience level is required' });
       }
     }
 
-    // Validate availabilities if provided
+    // Validate availability if provided
     if (availabilities && !Array.isArray(availabilities)) {
-      return res.status(400).json({ error: 'availabilities must be an array' });
+      return res.status(400).json({ error: 'Availabilities must be an array' });
     }
 
-    // Prepare update object
     const updateData = {
       fullName,
       username,
@@ -56,7 +72,10 @@ exports.completeProfile = async (req, res) => {
       hourlyRate,
       languages: languages || null,
       profilePicture: profilePicture || null,
-      // New fields (only update if provided)
+      useCurrentLocation: useCurrentLocation || false,
+      ...(searchedLocation && { searchedLocation }),
+      ...(selectedLocation && { selectedLocation }),
+      ...(locationDetails && { locationDetails }),
       ...(talentType && { 
         talentType: talentType === 'Other' ? customTalent : talentType,
         customTalent: talentType === 'Other' ? customTalent : null,
@@ -74,6 +93,42 @@ exports.completeProfile = async (req, res) => {
     }
 
     res.status(200).json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.searchLocations = async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const results = MOCK_LOCATIONS.filter(location =>
+      location.toLowerCase().includes(query.toLowerCase())
+    );
+
+    res.status(200).json({ locations: results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const profile = await UserProfile.findOne({ 
+      where: { id: userId },
+      attributes: { exclude: ['password'] } // Exclude sensitive fields
+    });
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    res.status(200).json(profile);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -2,70 +2,81 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const UserProfile = sequelize.define('UserProfile', {
-  // Existing fields (keeping all your current required fields)
+  // Personal Information
   fullName: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: false
   },
   username: {
     type: DataTypes.STRING,
     allowNull: false,
+    unique: true
   },
   phoneNumber: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: false
   },
   gender: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: false
   },
   age: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: false
   },
+  
+  // Location Information
   country: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: false
   },
   city: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: false
   },
+  useCurrentLocation: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  searchedLocation: {
+    type: DataTypes.STRING
+  },
+  selectedLocation: {
+    type: DataTypes.STRING
+  },
+  locationDetails: {
+    type: DataTypes.JSON
+  },
+  
+  // Professional Information
   languages: {
-    type: DataTypes.JSON,
-    allowNull: true, // Keeping as optional
+    type: DataTypes.JSON
   },
   hourlyRate: {
     type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  profilePicture: {
-    type: DataTypes.STRING,
-    allowNull: true, // Keeping as optional
+    allowNull: false
   },
   
-  // New talent-related fields (making them optional initially)
+  // Talent Information
   talentType: {
-    type: DataTypes.STRING,
-    allowNull: true, // Will make false after migration
-    defaultValue: null
+    type: DataTypes.STRING
   },
   customTalent: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    defaultValue: null
+    type: DataTypes.STRING
   },
   experienceLevel: {
-    type: DataTypes.STRING,
-    allowNull: true, // Will make false after migration
-    defaultValue: null
+    type: DataTypes.STRING
   },
   
-  // New availability field (JSON format)
+  // Availability
   availabilities: {
     type: DataTypes.JSON,
-    allowNull: true, // Will make false after migration
     defaultValue: []
+  },
+  
+  // Profile Media
+  profilePicture: {
+    type: DataTypes.STRING
   }
 }, {
   tableName: 'users',
