@@ -1,29 +1,21 @@
 require('dotenv').config();
-const express = require('express');
-const sequelize = require('./config/database');
+const app = require('./app');
+const db = require('./config/db');
 
-// Import routes
-const authRoutes = require('./routes/authRoutes');
-const profileRoutes = require('./routes/profile');
+const PORT = process.env.PORT || 5000;
 
-const app = express();
+const startServer = async () => {
+  try {
+    await db.getConnection(); // MySQL connection check
+    console.log('✅ MySQL Connected');
 
-// Middlewares
-app.use(express.json());
-
-// Routes
-app.use('/api', authRoutes); // e.g., /api/register
-app.use('/api', profileRoutes); // e.g., /api/profile/view
-
-// DB Sync & Server Start
-sequelize.sync()
-  .then(() => {
-    console.log('MySQL connected and synced');
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      console.log(`🚀 Server running on http://localhost:${port}`);
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
-  })
-  .catch(err => {
-    console.error('❌ MySQL connection error:', err);
-  });
+  } catch (err) {
+    console.error('❌ DB connection failed:', err.message);
+    process.exit(1);
+  }
+};
+
+startServer();

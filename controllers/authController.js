@@ -1,125 +1,246 @@
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Talent = require('../models/Talent');
+const Client = require('../models/Client');
+const ErrorResponse = require('../utils/errorResponse');
+const sendEmail = require('../services/emailService');
+const { signToken } = require('../utils/helpers');
 
-exports.register = async (req, res) => {
-  const { name, username, phoneNumber ,pincode} = req.body;
-
-  // Validate terms agreement
-  if (!req.body.termsAgreed) {
-    return res.status(400).json({ error: 'You must agree to the terms and conditions' });
-  }
-
-  try {
-    // Add country code if not already present
-    const formattedPhoneNumber = phoneNumber.startsWith('+966') ? phoneNumber : `+966${phoneNumber}`;
-
-    // ✅ Generate 4-digit pincode
-    const pincode = Math.floor(1000 + Math.random() * 9000).toString();
-
-    // ✅ Pass pincode explicitly
-    const user = await User.create({
-      name,
-      username,
-      phoneNumber: formattedPhoneNumber,
-      pincode, // Required to avoid the notNull error
-    });
-
-    res.status(201).json({ user, pincode });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
-
-
-// exports.login = async (req, res) => {
-//   const { phoneNumber } = req.body;
-
-//   if (!phoneNumber) {
-//     return res.status(400).json({ error: 'Phone number is required' });
-//   }
-
-//   try {
-//     const formattedPhoneNumber = phoneNumber.startsWith('+966') ? phoneNumber : `+966${phoneNumber}`;
-
-//     const user = await User.findOne({
-//       where: { phoneNumber: formattedPhoneNumber },
-//       order: [['createdAt', 'DESC']], // optional: if multiple, get latest user record by createdAt
-//     });
-
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     // Send back user info and latest pincode stored in DB
-//     res.json({
-//       user,
-//       pincode: user.pincode,  // assuming `pincode` is stored on user model
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: err.message });
-//   }
-// };
-exports.login = async (req, res) => {
-  const { phoneNumber } = req.body;
-
-  if (!phoneNumber) {
-    return res.status(400).json({ error: 'Phone number is required' });
-  }
+// @desc    Register user
+// @route   POST /api/v1/auth/register
+// @access  Public
+exports.register = async (req, res, next) => {
+  const { username, email, phoneNumber, password, role } = req.body;
 
   try {
-    const formattedPhoneNumber = phoneNumber.startsWith('+966') ? phoneNumber : `+966${phoneNumber}`;
-
-    const user = await User.findOne({ where: { phoneNumber: formattedPhoneNumber } });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    // Check if user exists
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return next(new ErrorResponse('User already exists', 400));
     }
 
-    // Generate new 4-digit pincode
-    const newPincode = Math.floor(1000 + Math.random() * 9000).toString();
+    // Create user
+    const user = await User.create({
+      username,
+      email,
+      phoneNumber,
+      password,
+      role,
+    });
 
-    // Update user with new pincode
-    user.pincode = newPincode;
+    // Create profile based on role
+    if (role === 'talent') {
+      await Talent.create({ user: user._id });
+    } else if (role === 'client') {
+      await Client.create({ user: user._id });
+    }
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = otp;
+    user.verificationCodeExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save();
 
-    res.json({
-      user,
-      pincode: newPincode,
+    // Send verification email
+    const message = `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`;
+    await sendEmail({
+      email: user.email,
+      subject: 'Account Verification Code',
+      message,
     });
+
+    // Send token response
+    sendTokenResponse(user, 200, res);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 };
 
-
-exports.verifyByPincode = async (req, res) => {
-  const { pincode } = req.body;
-
-  if (!pincode) {
-    return res.status(400).json({ error: 'Pincode is required' });
-  }
+// @desc    Verify user account
+// @route   POST /api/v1/auth/verify
+// @access  Public
+exports.verifyAccount = async (req, res, next) => {
+  const { verificationCode } = req.body;
 
   try {
     const user = await User.findOne({
-      where: { pincode }
+      verificationCode,
+      verificationCodeExpire: { $gt: Date.now() },
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid pincode' });
+      return next(new ErrorResponse('Invalid or expired verification code', 400));
     }
 
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET_KEY, {
-      expiresIn: '1d',
-    });
+    user.isVerified = true;
+    user.verificationCode = undefined;
+    user.verificationCodeExpire = undefined;
+    await user.save();
 
-    res.json({
-      message: 'Pincode verified successfully',
-      token,
-      user,
+    sendTokenResponse(user, 200, res);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Login user
+// @route   POST /api/v1/auth/login
+// @access  Public
+exports.login = async (req, res, next) => {
+  const { email, password } = req.body;
+
+  try {
+    // Validate email and password
+    if (!email || !password) {
+      return next(new ErrorResponse('Please provide an email and password', 400));
+    }
+
+    // Check for user
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      return next(new ErrorResponse('Invalid credentials', 401));
+    }
+
+    // Check if password matches
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return next(new ErrorResponse('Invalid credentials', 401));
+    }
+
+    // Check if account is verified
+    if (!user.isVerified) {
+      return next(new ErrorResponse('Please verify your account first', 401));
+    }
+
+    sendTokenResponse(user, 200, res);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get current logged in user
+// @route   GET /api/v1/auth/me
+// @access  Private
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    let profile;
+    if (user.role === 'talent') {
+      profile = await Talent.findOne({ user: user._id });
+    } else if (user.role === 'client') {
+      profile = await Client.findOne({ user: user._id });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user,
+        profile,
+      },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    next(err);
   }
+};
+
+// @desc    Forgot password
+// @route   POST /api/v1/auth/forgotpassword
+// @access  Public
+exports.forgotPassword = async (req, res, next) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(new ErrorResponse('No user with that email', 404));
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    // Create reset URL
+    const resetUrl = `${req.protocol}://${req.get('host')}/api/v1/auth/resetpassword/${resetToken}`;
+
+    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'Password reset token',
+        message,
+      });
+
+      res.status(200).json({ success: true, data: 'Email sent' });
+    } catch (err) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+      await user.save();
+      return next(new ErrorResponse('Email could not be sent', 500));
+    }
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Reset password
+// @route   PUT /api/v1/auth/resetpassword/:resettoken
+// @access  Public
+exports.resetPassword = async (req, res, next) => {
+  const resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(req.params.resettoken)
+    .digest('hex');
+
+  try {
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return next(new ErrorResponse('Invalid token', 400));
+    }
+
+    // Set new password
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    sendTokenResponse(user, 200, res);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Get token from model, create cookie and send response
+const sendTokenResponse = (user, statusCode, res) => {
+  // Create token
+  const token = signToken(user._id);
+
+  const options = {
+    expires: new Date(
+      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
+    ),
+    httpOnly: true,
+  };
+
+  if (process.env.NODE_ENV === 'production') {
+    options.secure = true;
+  }
+
+  res
+    .status(statusCode)
+    .cookie('token', token, options)
+    .json({
+      success: true,
+      token,
+      role: user.role,
+    });
 };
