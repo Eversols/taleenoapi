@@ -1,12 +1,31 @@
+require('dotenv').config(); // Load .env file
+
 module.exports = {
-  PORT: process.env.PORT || 5000,
-  JWT_SECRET: process.env.JWT_SECRET || 'cd243fd3gf46j67k8987lk6h453f2d',
-  JWT_EXPIRE: '30d',
-  COOKIE_EXPIRE: 30,
-  SMTP_HOST: process.env.SMTP_HOST,
-  SMTP_PORT: process.env.SMTP_PORT,
-  SMTP_EMAIL: process.env.SMTP_EMAIL,
-  SMTP_PASSWORD: process.env.SMTP_PASSWORD,
-  FROM_EMAIL: process.env.FROM_EMAIL,
-  FROM_NAME: process.env.FROM_NAME,
+  development: {
+    username: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || null,
+    database: process.env.DB_NAME || 'database_development',
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: process.env.DB_PORT || 3306,
+    dialect: 'mysql',
+    logging: console.log
+  },
+  test: {
+    username: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || null,
+    database: process.env.DB_NAME_TEST || 'database_test',
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: process.env.DB_PORT || 3306,
+    dialect: 'mysql',
+    logging: false
+  },
+  production: {
+    username: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || null,
+    database: process.env.DB_NAME_PROD || 'database_production',
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: process.env.DB_PORT || 3306,
+    dialect: 'mysql',
+    logging: false
+  }
 };
