@@ -2,19 +2,28 @@
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
-  class Video extends Model {
+  class Project extends Model {
     static associate(models) {
       // Define associations here
-      Video.belongsTo(models.Talent, { foreignKey: 'talent_id', as: 'talent' });
+      Project.belongsTo(models.Talent, { foreignKey: 'talent_id', as: 'talent' });
+      Project.belongsTo(models.Client, { foreignKey: 'client_id', as: 'client' });
     }
   }
 
-  Video.init({
+  Project.init({
     talent_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'talents',
+        key: 'id'
+      }
+    },
+    client_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'clients',
         key: 'id'
       }
     },
@@ -29,48 +38,16 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    video_url: {
+    photo: {
       type: DataTypes.STRING(255),
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-        isUrl: true
-      }
+      allowNull: true
     },
-    thumbnail_url: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
-      validate: {
-        isUrl: true
-      }
-    },
-    duration: {
+    total_hours: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: false,
       validate: {
         min: 1
       }
-    },
-    views: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
-      validate: {
-        min: 0
-      }
-    },
-    likes: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
-      validate: {
-        min: 0
-      }
-    },
-    is_featured: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false
     },
     deleted_at: {
       type: DataTypes.DATE,
@@ -78,8 +55,8 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     sequelize,
-    modelName: 'Video',
-    tableName: 'videos',
+    modelName: 'Project',
+    tableName: 'projects',
     paranoid: true,
     underscored: true,
     timestamps: true,
@@ -88,5 +65,5 @@ module.exports = (sequelize, DataTypes) => {
     deletedAt: 'deleted_at'
   });
 
-  return Video;
+  return Project;
 };

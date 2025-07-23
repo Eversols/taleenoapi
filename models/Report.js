@@ -2,17 +2,16 @@
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
-  class Message extends Model {
+  class Report extends Model {
     static associate(models) {
       // Define associations here
-      Message.belongsTo(models.User, { foreignKey: 'sender_id', as: 'sender' });
-      Message.belongsTo(models.User, { foreignKey: 'receiver_id', as: 'receiver' });
-      Message.belongsTo(models.Booking, { foreignKey: 'booking_id', as: 'booking' });
+      Report.belongsTo(models.User, { foreignKey: 'reporter_id', as: 'reporter' });
+      Report.belongsTo(models.User, { foreignKey: 'reported_id', as: 'reported' });
     }
   }
 
-  Message.init({
-    sender_id: {
+  Report.init({
+    reporter_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -20,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
-    receiver_id: {
+    reported_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -28,25 +27,22 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
-    booking_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'bookings',
-        key: 'id'
-      }
+    report_type: {
+      type: DataTypes.ENUM('spam', 'inappropriate', 'fake', 'other'),
+      allowNull: false
     },
-    content: {
+    description: {
       type: DataTypes.TEXT,
-      allowNull: false,
-      validate: {
-        notEmpty: true
-      }
+      allowNull: true
     },
-    is_read: {
-      type: DataTypes.BOOLEAN,
+    status: {
+      type: DataTypes.ENUM('pending', 'reviewed', 'resolved', 'dismissed'),
       allowNull: false,
-      defaultValue: false
+      defaultValue: 'pending'
+    },
+    admin_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     deleted_at: {
       type: DataTypes.DATE,
@@ -54,8 +50,8 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     sequelize,
-    modelName: 'Message',
-    tableName: 'messages',
+    modelName: 'Report',
+    tableName: 'reports',
     paranoid: true,
     underscored: true,
     timestamps: true,
@@ -64,5 +60,5 @@ module.exports = (sequelize, DataTypes) => {
     deletedAt: 'deleted_at'
   });
 
-  return Message;
+  return Report;
 };

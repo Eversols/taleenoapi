@@ -1,246 +1,350 @@
-const User = require('../models/User');
-const Talent = require('../models/Talent');
-const Client = require('../models/Client');
-const ErrorResponse = require('../utils/errorResponse');
-const sendEmail = require('../services/emailService');
-const { signToken } = require('../utils/helpers');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
+const { User, Talent, Client } = require('../models');
+// const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
+const { generateOTP } = require('../utils/helpers');
 
-// @desc    Register user
-// @route   POST /api/v1/auth/register
-// @access  Public
-exports.register = async (req, res, next) => {
-  const { username, email, phoneNumber, password, role } = req.body;
-
+// Register a new user
+exports.register = async (req, res) => {
   try {
-    // Check if user exists
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    const { username, email, phone_number, password, role } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      where: {
+        [Op.or]: [{ username }, { email }]
+      }
+    });
+
     if (existingUser) {
-      return next(new ErrorResponse('User already exists', 400));
+      return res.status(400).json({
+        success: false,
+        message: 'Username or email already exists'
+      });
     }
 
     // Create user
     const user = await User.create({
       username,
       email,
-      phoneNumber,
+      phone_number,
       password,
-      role,
+      role
     });
+
+    // Generate verification code
+    const verificationCode = generateOTP();
+    const verificationCodeExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await user.update({
+      verification_code: verificationCode,
+      verification_code_expire: verificationCodeExpire
+    });
+
+    // Send verification email
+    // await sendVerificationEmail(user.email, verificationCode);
 
     // Create profile based on role
     if (role === 'talent') {
-      await Talent.create({ user: user._id });
+      await Talent.create({
+        user_id: user.id,
+        full_name: req.body.full_name || '',
+        country: req.body.country || '',
+        city: req.body.city || '',
+        main_talent: req.body.main_talent || '',
+        hourly_rate: req.body.hourly_rate || '',
+        languages: req.body.languages || [],
+        skills: req.body.skills || []
+      });
     } else if (role === 'client') {
-      await Client.create({ user: user._id });
+      await Client.create({
+        user_id: user.id,
+        full_name: req.body.full_name || '',
+        country: req.body.country || '',
+        city: req.body.city || ''
+      });
     }
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verificationCode = otp;
-    user.verificationCodeExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
-
-    // Send verification email
-    const message = `Your verification code is: ${otp}\nThis code will expire in 10 minutes.`;
-    await sendEmail({
-      email: user.email,
-      subject: 'Account Verification Code',
-      message,
+    // Generate JWT token
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE
     });
 
-    // Send token response
-    sendTokenResponse(user, 200, res);
-  } catch (err) {
-    next(err);
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        is_verified: user.is_verified
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
   }
 };
 
-// @desc    Verify user account
-// @route   POST /api/v1/auth/verify
-// @access  Public
-exports.verifyAccount = async (req, res, next) => {
-  const { verificationCode } = req.body;
-
+// Login user
+exports.login = async (req, res) => {
   try {
+    const { username, password } = req.body;
+
+    // Check if user exists
     const user = await User.findOne({
-      verificationCode,
-      verificationCodeExpire: { $gt: Date.now() },
+      where: {
+        [Op.or]: [{ username }, { email: username }]
+      }
     });
 
     if (!user) {
-      return next(new ErrorResponse('Invalid or expired verification code', 400));
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
     }
 
-    user.isVerified = true;
-    user.verificationCode = undefined;
-    user.verificationCodeExpire = undefined;
-    await user.save();
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
 
-    sendTokenResponse(user, 200, res);
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Login user
-// @route   POST /api/v1/auth/login
-// @access  Public
-exports.login = async (req, res, next) => {
-  const { email, password } = req.body;
-
-  try {
-    // Validate email and password
-    if (!email || !password) {
-      return next(new ErrorResponse('Please provide an email and password', 400));
-    }
-
-    // Check for user
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return next(new ErrorResponse('Invalid credentials', 401));
-    }
-
-    // Check if password matches
-    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return next(new ErrorResponse('Invalid credentials', 401));
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
     }
 
-    // Check if account is verified
-    if (!user.isVerified) {
-      return next(new ErrorResponse('Please verify your account first', 401));
-    }
+    // Generate JWT token
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE
+    });
 
-    sendTokenResponse(user, 200, res);
-  } catch (err) {
-    next(err);
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        is_verified: user.is_verified
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
   }
 };
 
-// @desc    Get current logged in user
-// @route   GET /api/v1/auth/me
-// @access  Private
-exports.getMe = async (req, res, next) => {
+// Verify email
+exports.verifyEmail = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    
-    let profile;
-    if (user.role === 'talent') {
-      profile = await Talent.findOne({ user: user._id });
-    } else if (user.role === 'client') {
-      profile = await Client.findOne({ user: user._id });
+    const { code } = req.params;
+
+    const user = await User.findOne({
+      where: {
+        verification_code: code,
+        verification_code_expire: {
+          [Op.gt]: new Date()
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification code'
+      });
+    }
+
+    await user.update({
+      is_verified: true,
+      verification_code: null,
+      verification_code_expire: null
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Forgot password
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: '10m'
+    });
+
+    const resetPasswordExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await user.update({
+      reset_password_token: resetToken,
+      reset_password_expire: resetPasswordExpire
+    });
+
+    // Send password reset email
+    await sendPasswordResetEmail(user.email, resetToken);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset email sent'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Reset password
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findOne({
+      where: {
+        id: decoded.id,
+        reset_password_token: token,
+        reset_password_expire: {
+          [Op.gt]: new Date()
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+
+    // Update password
+    await user.update({
+      password,
+      reset_password_token: null,
+      reset_password_expire: null
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Get current user
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password', 'verification_code', 'verification_code_expire', 'reset_password_token', 'reset_password_expire'] },
+      include: [
+        {
+          association: req.user.role === 'talent' ? 'talent' : 'client',
+          attributes: { exclude: ['user_id', 'deleted_at'] }
+        }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
     res.status(200).json({
       success: true,
-      data: {
-        user,
-        profile,
-      },
+      user
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
   }
 };
 
-// @desc    Forgot password
-// @route   POST /api/v1/auth/forgotpassword
-// @access  Public
-exports.forgotPassword = async (req, res, next) => {
-  const { email } = req.body;
-
+// Update user details
+exports.updateMe = async (req, res) => {
   try {
-    const user = await User.findOne({ email });
+    const { username, email, phone_number, password } = req.body;
+
+    const user = await User.findByPk(req.user.id);
+
     if (!user) {
-      return next(new ErrorResponse('No user with that email', 404));
-    }
-
-    // Generate reset token
-    const resetToken = crypto.randomBytes(20).toString('hex');
-    user.resetPasswordToken = crypto
-      .createHash('sha256')
-      .update(resetToken)
-      .digest('hex');
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
-
-    // Create reset URL
-    const resetUrl = `${req.protocol}://${req.get('host')}/api/v1/auth/resetpassword/${resetToken}`;
-
-    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
-
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: 'Password reset token',
-        message,
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
       });
-
-      res.status(200).json({ success: true, data: 'Email sent' });
-    } catch (err) {
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpire = undefined;
-      await user.save();
-      return next(new ErrorResponse('Email could not be sent', 500));
-    }
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Reset password
-// @route   PUT /api/v1/auth/resetpassword/:resettoken
-// @access  Public
-exports.resetPassword = async (req, res, next) => {
-  const resetPasswordToken = crypto
-    .createHash('sha256')
-    .update(req.params.resettoken)
-    .digest('hex');
-
-  try {
-    const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      return next(new ErrorResponse('Invalid token', 400));
     }
 
-    // Set new password
-    user.password = req.body.password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save();
+    // Update user
+    const updateData = {};
+    if (username) updateData.username = username;
+    if (email) updateData.email = email;
+    if (phone_number) updateData.phone_number = phone_number;
+    if (password) updateData.password = password;
 
-    sendTokenResponse(user, 200, res);
-  } catch (err) {
-    next(err);
-  }
-};
+    await user.update(updateData);
 
-// Get token from model, create cookie and send response
-const sendTokenResponse = (user, statusCode, res) => {
-  // Create token
-  const token = signToken(user._id);
-
-  const options = {
-    expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true,
-  };
-
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
-  }
-
-  res
-    .status(statusCode)
-    .cookie('token', token, options)
-    .json({
+    res.status(200).json({
       success: true,
-      token,
-      role: user.role,
+      message: 'User updated successfully'
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
 };

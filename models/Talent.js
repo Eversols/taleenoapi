@@ -1,80 +1,125 @@
+'use strict';
+const { Model } = require('sequelize');
 
-const mongoose = require('mongoose');
+module.exports = (sequelize, DataTypes) => {
+  class Talent extends Model {
+    static associate(models) {
+      // Define associations here
+      Talent.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+      Talent.hasMany(models.Project, { foreignKey: 'talent_id', as: 'projects' });
+      Talent.hasMany(models.Booking, { foreignKey: 'talent_id', as: 'bookings' });
+      Talent.hasMany(models.Video, { foreignKey: 'talent_id', as: 'videos' });
+      Talent.hasMany(models.Favorite, { foreignKey: 'talent_id', as: 'favorites' });
+    }
+  }
 
-const talentSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true,
-  },
-  fullName: {
-    type: String,
-    required: [true, 'Please provide your full name'],
-  },
-  gender: {
-    type: String,
-    enum: ['male', 'female', 'other'],
-  },
-  age: {
-    type: Number,
-    min: [18, 'Age must be at least 18'],
-  },
-  country: {
-    type: String,
-    required: true,
-  },
-  city: {
-    type: String,
-    required: true,
-  },
-  languages: [{
-    type: String,
-  }],
-  mainTalent: {
-    type: String,
-    required: true,
-  },
-  skills: [{
-    type: String,
-  }],
-  experienceLevel: {
-    type: String,
-    enum: ['entry', 'intermediate', 'expert'],
-    default: 'entry',
-  },
-  hourlyRate: {
-    type: Number,
-    required: true,
-  },
-  currency: {
-    type: String,
-    default: 'USD',
-  },
-  availability: [{
-    day: {
-      type: String,
-      enum: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+  Talent.init({
+    user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      unique: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
     },
-    slots: [{
-      start: String,
-      end: String,
-    }],
-  }],
-  about: {
-    type: String,
-    maxlength: [500, 'About cannot be more than 500 characters'],
-  },
-  profilePhoto: {
-    type: String,
-    default: 'default.jpg',
-  },
-  isApproved: {
-    type: Boolean,
-    default: false,
-  },
-}, {
-  timestamps: true,
-});
+    full_name: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      validate: {
+        notEmpty: true
+      }
+    },
+    gender: {
+      type: DataTypes.ENUM('male', 'female', 'other'),
+      allowNull: true
+    },
+    age: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 13,
+        max: 120
+      }
+    },
+    country: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      validate: {
+        notEmpty: true
+      }
+    },
+    city: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      validate: {
+        notEmpty: true
+      }
+    },
+    languages: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: []
+    },
+    main_talent: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      validate: {
+        notEmpty: true
+      }
+    },
+    skills: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: []
+    },
+    experience_level: {
+      type: DataTypes.ENUM('entry', 'intermediate', 'expert'),
+      allowNull: false,
+      defaultValue: 'entry'
+    },
+    hourly_rate: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+    },
+    currency: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      defaultValue: 'USD'
+    },
+    about: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    profile_photo: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      defaultValue: 'default.jpg'
+    },
+    is_approved: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+    availability: {
+      type: DataTypes.JSON,
+      allowNull: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    }
+  }, {
+    sequelize,
+    modelName: 'Talent',
+    tableName: 'talents',
+    paranoid: true,
+    underscored: true,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    deletedAt: 'deleted_at'
+  });
 
-module.exports = mongoose.model('Talent', talentSchema);
+  return Talent;
+};
