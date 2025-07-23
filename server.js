@@ -1,10 +1,12 @@
 const express = require('express');
 const app = express();
 const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 require('dotenv').config();
 
 app.use(express.json());
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Default test route
 app.get('/', (req, res) => {
