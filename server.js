@@ -7,6 +7,8 @@ const languageRoutes = require('./routes/languageRoutes');
 const countryRoutes = require('./routes/countryRoutes');
 const cityRoutes = require('./routes/cityRoutes');
 const contactRoutes = require('./routes/contactRoutes');
+const followRoutes = require('./routes/followRoutes');
+const mediaRoutes = require('./routes/mediaRoutes');
 require('dotenv').config();
 
 app.use(express.json());
@@ -17,6 +19,10 @@ app.use('/api/language', languageRoutes);
 app.use('/api/country', countryRoutes);
 app.use('/api/city', cityRoutes);
 app.use('/api/contact', contactRoutes);
+// 
+app.use('/api/follow', followRoutes);
+app.use('/api/media', mediaRoutes);
+
 
 // Default test route
 app.get('/', (req, res) => {
