@@ -6,6 +6,7 @@ const skillRoutes = require('./routes/skillRoutes');
 const languageRoutes = require('./routes/languageRoutes');
 const countryRoutes = require('./routes/countryRoutes');
 const cityRoutes = require('./routes/cityRoutes');
+const contactRoutes = require('./routes/contactRoutes');
 require('dotenv').config();
 
 app.use(express.json());
@@ -15,6 +16,7 @@ app.use('/api/skill', skillRoutes);
 app.use('/api/language', languageRoutes);
 app.use('/api/country', countryRoutes);
 app.use('/api/city', cityRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Default test route
 app.get('/', (req, res) => {
