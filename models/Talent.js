@@ -23,6 +23,14 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
+    category_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'talentcategories',
+        key: 'id'
+      }
+    },
     full_name: {
       type: DataTypes.STRING(100),
       allowNull: false,
@@ -44,14 +52,14 @@ module.exports = (sequelize, DataTypes) => {
     },
     country: {
       type: DataTypes.STRING(50),
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true
       }
     },
     city: {
       type: DataTypes.STRING(50),
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true
       }
@@ -63,7 +71,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     main_talent: {
       type: DataTypes.STRING(50),
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true
       }
