@@ -43,14 +43,14 @@ module.exports = (sequelize, DataTypes) => {
     },
     country: {
       type: DataTypes.STRING(50),
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true
       }
     },
     city: {
       type: DataTypes.STRING(50),
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true
       }
