@@ -10,6 +10,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const followRoutes = require('./routes/followRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
 const { swaggerUi, swaggerDocument } = require('./swaggerDocument');
+const talentCategoryRoutes = require('./routes/talentCategoryRoutes');
 require('dotenv').config();
 
 app.use(express.json());
@@ -20,7 +21,7 @@ app.use('/api/language', languageRoutes);
 app.use('/api/country', countryRoutes);
 app.use('/api/city', cityRoutes);
 app.use('/api/contact', contactRoutes);
-// 
+app.use('/api/talent-categories', talentCategoryRoutes); 
 app.use('/api/follow', followRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
