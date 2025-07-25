@@ -58,7 +58,8 @@ exports.register = async (req, res) => {
         user_id: user.id,
         full_name,
         hourly_rate: req.body.hourly_rate || 0,
-        languages: req.body.languages || []
+        languages: req.body.languages || [],
+        category_id : req.body.category_id  || []
       });
     } else {
       await Client.create({

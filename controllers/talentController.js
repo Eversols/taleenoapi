@@ -15,7 +15,7 @@ exports.getTalents = async (req, res, next) => {
     let queryStr = JSON.stringify(queryObj);
     queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`);
 
-    let query = Talent.find(JSON.parse(queryStr)).populate('user');
+    let query = Talent.find(JSON.parse(queryStr)).populate('user').populate('category');
 
     // Sorting
     if (req.query.sort) {
@@ -69,7 +69,7 @@ exports.getTalents = async (req, res, next) => {
 // @access  Public
 exports.getTalent = async (req, res, next) => {
   try {
-    const talent = await Talent.findById(req.params.id).populate('user');
+    const talent = await Talent.findById(req.params.id).populate('user').populate('category');
 
     if (!talent) {
       return next(
