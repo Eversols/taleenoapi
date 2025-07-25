@@ -9,6 +9,7 @@ const cityRoutes = require('./routes/cityRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const followRoutes = require('./routes/followRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
+const { swaggerUi, swaggerDocument } = require('./swaggerDocument');
 require('dotenv').config();
 
 app.use(express.json());
@@ -22,7 +23,7 @@ app.use('/api/contact', contactRoutes);
 // 
 app.use('/api/follow', followRoutes);
 app.use('/api/media', mediaRoutes);
-
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Default test route
 app.get('/', (req, res) => {
