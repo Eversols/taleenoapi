@@ -8,70 +8,73 @@ const { generateOTP } = require('../utils/helpers');
 // Register a new user
 exports.register = async (req, res) => {
   try {
-    const { full_name, username, phone_number, password, role } = req.body;
+    const { full_name, username, email, phone_number, password, role } = req.body;
 
-    // Validate required fields
-    if (!full_name || !username || !phone_number || !password) {
+    if (!full_name || !username || !email || !phone_number || !password) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
       });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({
       where: {
-        [Op.or]: [{ username }, { phone_number }]
+        [Op.or]: [{ username }, { phone_number }, { email }]
       }
     });
 
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Username or phone number already exists'
+        message: 'Username, email, or phone number already exists'
       });
     }
 
-    // Create user
     const user = await User.create({
       username,
+      email,
       phone_number,
       password,
-      role: role || 'client' // Default to client if not specified
+      role: role || 'client'
     });
 
-    // Generate OTP
     const otp = generateOTP();
-    const otpExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
 
     await user.update({
       verification_code: otp,
       verification_code_expire: otpExpire
     });
 
-    // Send OTP via SMS
-    // await sendOTP(phone_number, otp);
+    // Send OTP here if needed
 
-    // Create profile based on role
     if (role === 'talent') {
       await Talent.create({
         user_id: user.id,
         full_name,
         hourly_rate: req.body.hourly_rate || 0,
         languages: req.body.languages || [],
-        category_id : req.body.category_id  || []
+        category_id: req.body.category_id,
+        country: req.body.country,
+        city: req.body.city,
+        country: req.body.country,
+        age: req.body.age,
       });
     } else {
       await Client.create({
         user_id: user.id,
-        full_name
+        full_name,
+        country: req.body.country,
+        city: req.body.city,
+        country: req.body.country,
+        age: req.body.age,
       });
     }
 
     res.status(201).json({
       success: true,
       message: 'OTP sent to your phone number',
-      phone_number: phone_number.slice(-4) // Show last 4 digits for confirmation
+      phone_number: phone_number.slice(-4)
     });
   } catch (error) {
     console.error(error);
