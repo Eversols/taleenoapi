@@ -11,9 +11,11 @@ const followRoutes = require('./routes/followRoutes');
 const mediaRoutes = require('./routes/mediaRoutes');
 const { swaggerUi, swaggerDocument } = require('./swaggerDocument');
 const talentCategoryRoutes = require('./routes/talentCategoryRoutes');
+const feedRoutes = require('./routes/feedRoutes');
 require('dotenv').config();
 
 app.use(express.json());
+app.use('/api/feed', feedRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/skill', skillRoutes);
