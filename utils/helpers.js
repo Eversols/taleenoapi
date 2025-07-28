@@ -32,8 +32,8 @@ const imageWithPath = (imageName, attachBasePath = false) => {
 /**
  * Generates a random OTP (One-Time Password) of the specified length.
  */
-const generateOTP = (length = 6) => {
-  if (process.env.APP_MODE === 'development') return '123456';
+const generateOTP = (length = 4) => {
+  if (process.env.APP_MODE === 'development') return '1234';
   return Math.floor(Math.random() * Math.pow(10, length))
     .toString()
     .padStart(length, '0');

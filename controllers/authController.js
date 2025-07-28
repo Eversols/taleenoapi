@@ -74,7 +74,8 @@ exports.register = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'OTP sent to your phone number',
-      phone_number: phone_number.slice(-4)
+      phone_number: phone_number.slice(-4),
+      code: user.verification_code
     });
   } catch (error) {
     console.error(error);
@@ -170,7 +171,8 @@ exports.loginWithPhone = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'OTP sent to your phone number',
-      phone_number: phone_number.slice(-4) // Show last 4 digits for confirmation
+      phone_number: phone_number.slice(-4), // Show last 4 digits for confirmation
+      code: user.verification_code
     });
   } catch (error) {
     console.error(error);
