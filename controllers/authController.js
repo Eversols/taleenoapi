@@ -93,6 +93,7 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone_number, code } = req.body;
 
+    // Find user with valid OTP
     const user = await User.findOne({
       where: {
         phone_number,
@@ -100,7 +101,17 @@ exports.verifyOTP = async (req, res) => {
         verification_code_expire: {
           [Op.gt]: new Date()
         }
-      }
+      },
+      include: [
+        {
+          association: 'talent',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        },
+        {
+          association: 'client',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        }
+      ]
     });
 
     if (!user) {
@@ -121,20 +132,26 @@ exports.verifyOTP = async (req, res) => {
       expiresIn: process.env.JWT_EXPIRE
     });
 
+    // Prepare user data based on role
+    const userData = {
+    token,
+    id: user.id,
+    username: user.username,
+    phone_number: user.phone_number,
+    email: user.email,
+    role: user.role,
+    is_verified: user.is_verified,
+    ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
+    };
+
     return res.status(201).json(
-      sendJson(true, 'Successfully verified token.', {
-        token: token,
-        id: user.id,
-        username: user.username,
-        phone_number: user.phone_number,
-        role: user.role,
-        is_verified: user.is_verified
-      })
+      sendJson(true, 'Successfully verified', userData)
     );
+
   } catch (error) {
-    console.error(error);
+    console.error('OTP verification error:', error);
     return res.status(500).json(
-      sendJson(false, 'Server error', {
+      sendJson(false, 'Server error during verification', {
         error: error.message
       })
     );
