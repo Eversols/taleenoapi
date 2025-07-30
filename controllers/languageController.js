@@ -42,7 +42,6 @@ exports.getAll = async (req, res) => {
     
     return res.status(200).json(
       sendJson(true, 'Languages retrieved successfully', { 
-        count: languages.length,
         languages 
       })
     );
