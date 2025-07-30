@@ -1,53 +1,100 @@
 const { Skill } = require('../models');
+const { sendJson } = require('../utils/helpers');
 
 exports.create = async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  // if (req.user.role !== 'admin') {
+  //   return res.status(403).json(
+  //     sendJson(false, 'Forbidden: Admin access required')
+  //   );
+  // }
 
   const { name } = req.body;
   try {
     const skill = await Skill.create({ name });
-    res.status(201).json({ success: true, skill });
+    return res.status(201).json(
+      sendJson(true, 'Skill created successfully', { skill })
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json(
+      sendJson(false, 'Server error', {
+        error: err.message
+      })
+    );
   }
 };
 
 exports.getAll = async (req, res) => {
   try {
     const skills = await Skill.findAll();
-    res.status(200).json({ success: true, skills });
+    return res.status(200).json(
+      sendJson(true, 'Skills retrieved successfully', { skills })
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json(
+      sendJson(false, 'Server error', {
+        error: err.message
+      })
+    );
   }
 };
 
 exports.update = async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  // if (req.user.role !== 'admin') {
+  //   return res.status(403).json(
+  //     sendJson(false, 'Forbidden: Admin access required')
+  //   );
+  // }
 
   try {
     const { id } = req.params;
     const { name } = req.body;
     const skill = await Skill.findByPk(id);
-    if (!skill) return res.status(404).json({ message: 'Not found' });
+    
+    if (!skill) {
+      return res.status(404).json(
+        sendJson(false, 'Skill not found')
+      );
+    }
 
     await skill.update({ name });
-    res.status(200).json({ success: true, skill });
+    return res.status(200).json(
+      sendJson(true, 'Skill updated successfully', { skill })
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json(
+      sendJson(false, 'Server error', {
+        error: err.message
+      })
+    );
   }
 };
 
 exports.remove = async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  // if (req.user.role !== 'admin') {
+  //   return res.status(403).json(
+  //     sendJson(false, 'Forbidden: Admin access required')
+  //   );
+  // }
 
   try {
     const { id } = req.params;
     const skill = await Skill.findByPk(id);
-    if (!skill) return res.status(404).json({ message: 'Not found' });
+    
+    if (!skill) {
+      return res.status(404).json(
+        sendJson(false, 'Skill not found')
+      );
+    }
 
     await skill.destroy();
-    res.status(200).json({ success: true, message: 'Deleted successfully' });
+    return res.status(200).json(
+      sendJson(true, 'Skill deleted successfully')
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json(
+      sendJson(false, 'Server error', {
+        error: err.message
+      })
+    );
   }
 };

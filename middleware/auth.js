@@ -1,12 +1,14 @@
-// middleware/auth.js
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
+const { sendJson } = require('../utils/helpers');
 
 module.exports = async function (req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
+    return res.status(401).json(
+      sendJson(false, 'Authorization token required')
+    );
   }
 
   const token = authHeader.split(' ')[1];
@@ -14,13 +16,28 @@ module.exports = async function (req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findByPk(decoded.id);
+    
     if (!user) {
-      return res.status(401).json({ success: false, message: 'User not found' });
+      return res.status(401).json(
+        sendJson(false, 'User account not found or inactive')
+      );
     }
 
     req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: 'Invalid token' });
+    // Handle different JWT error cases
+    let message = 'Invalid authentication token';
+    if (err.name === 'TokenExpiredError') {
+      message = 'Session expired, please login again';
+    } else if (err.name === 'JsonWebTokenError') {
+      message = 'Invalid token format';
+    }
+
+    return res.status(401).json(
+      sendJson(false, message, {
+        error: err.name
+      })
+    );
   }
 };

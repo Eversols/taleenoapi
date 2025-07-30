@@ -88,7 +88,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     hourly_rate: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
+      allowNull: true,
     },
     currency: {
       type: DataTypes.STRING(3),

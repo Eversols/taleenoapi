@@ -2,7 +2,7 @@ const { Language } = require('../models');
 
 // Create
 exports.create = async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  // if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
 
   const { name } = req.body;
   try {
@@ -25,7 +25,7 @@ exports.getAll = async (req, res) => {
 
 // Update
 exports.update = async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  // if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
 
   try {
     const { id } = req.params;
@@ -42,7 +42,7 @@ exports.update = async (req, res) => {
 
 // Delete
 exports.remove = async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+  // if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
 
   try {
     const { id } = req.params;

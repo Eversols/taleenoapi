@@ -1,16 +1,14 @@
-// routes/skillRoutes.js
 const express = require('express');
 const router = express.Router();
 const skillController = require('../controllers/skillController');
 const authMiddleware = require('../middleware/auth');
-const isAdmin = require('../middleware/isAdmin');
 
-router.use(authMiddleware); // authenticate all requests
-router.use(isAdmin); // restrict all routes in this file to admin only
-
-router.post('/', skillController.create);
+// Public route — no auth needed
 router.get('/', skillController.getAll);
-router.put('/:id', skillController.update);
-router.delete('/:id', skillController.remove);
+
+// Protected routes — only logged-in users can create/update/delete
+router.post('/', authMiddleware, skillController.create);
+router.put('/:id', authMiddleware, skillController.update);
+router.delete('/:id', authMiddleware, skillController.remove);
 
 module.exports = router;
