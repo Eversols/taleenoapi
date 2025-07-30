@@ -318,12 +318,16 @@ exports.updateProfile = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json(
-        sendJson(false, 'User not found')
-      );
+      return res.status(404).json(sendJson(false, 'User not found'));
     }
 
-    // Update user profile based on role
+    // ✅ Correct way to get uploaded file
+    let profile_photo = null;
+    if (req.file && req.file.filename) {
+      profile_photo = `/uploads/${req.file.filename}`;
+    }
+
+    // Update based on role
     if (req.user.role === 'talent') {
       await user.talent.update({
         full_name,
@@ -332,7 +336,8 @@ exports.updateProfile = async (req, res) => {
         country,
         city,
         languages,
-        hourly_rate
+        hourly_rate,
+        profile_photo
       });
     } else {
       await user.client.update({
@@ -340,21 +345,18 @@ exports.updateProfile = async (req, res) => {
         gender,
         age,
         country,
-        city
+        city,
+        profile_photo
       });
     }
 
     return res.status(200).json(
-      sendJson(true, 'Profile updated successfully', {
-        user
-      })
+      sendJson(true, 'Profile updated successfully', { user })
     );
   } catch (error) {
     console.error(error);
     return res.status(500).json(
-      sendJson(false, 'Server error', {
-        error: error.message
-      })
+      sendJson(false, 'Server error', { error: error.message })
     );
   }
 };
