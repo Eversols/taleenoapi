@@ -6,13 +6,19 @@ const { generateOTP, sendJson } = require('../utils/helpers');
 
 exports.register = async (req, res) => {
   try {
-    const { name, username, phone_number, role } = req.body;
+    const { username, phone_number, role } = req.body;
 
-    if (!name || !username || !phone_number) {
+    if (!username || !phone_number) {
       return res.status(400).json(
-        sendJson(false, 'Name, username, and phone number are required.')
+        sendJson(false, 'Username and phone number are required.')
       );
     }
+
+    // Always generate full name from username
+    const usernameParts = username.split(/[\._]/); // split by . or _
+    const full_name = usernameParts
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
 
     // Check for existing username or phone number
     const existingUser = await User.findOne({
@@ -32,7 +38,7 @@ exports.register = async (req, res) => {
 
     // Set default email and password
     const defaultEmail = `${username}@gmail.com`;
-    const defaultPassword = await bcrypt.hash('123456', 10); // default password
+    const defaultPassword = await bcrypt.hash('123456', 10);
 
     const user = await User.create({
       username,
@@ -43,7 +49,8 @@ exports.register = async (req, res) => {
     });
 
     // Generate OTP
-    const otp = generateOTP();
+    // const otp = generateOTP();
+    const otp = "1234";
     const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
 
     await user.update({
@@ -51,23 +58,23 @@ exports.register = async (req, res) => {
       verification_code_expire: otpExpire
     });
 
-    // Create Talent or Client
+    // Create Talent or Client with full_name
     if (role === 'talent') {
       await Talent.create({
         user_id: user.id,
-        full_name: name
+        full_name
       });
     } else {
       await Client.create({
         user_id: user.id,
-        full_name: name
+        full_name
       });
     }
 
     return res.status(201).json(
       sendJson(true, 'OTP sent to your phone number.', {
         phone_last_4: phone_number.slice(-4),
-        otp: otp,
+        otp,
         user_id: user.id
       })
     );
@@ -148,7 +155,8 @@ exports.loginWithPhone = async (req, res) => {
     }
 
     // Generate OTP
-    const otp = generateOTP();
+    // const otp = generateOTP();
+    const otp = "1234";
     const otpExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await user.update({
