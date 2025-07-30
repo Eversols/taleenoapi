@@ -1,12 +1,13 @@
-// models/country.js
 'use strict';
 const { Model } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
   class Country extends Model {
     static associate(models) {
-      // associations can go here
+      // define associations here
     }
   }
+
   Country.init({
     name: {
       type: DataTypes.STRING,
@@ -20,6 +21,8 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Country',
+    tableName: 'countries', // 👈 Use the actual table name from your DB
   });
+
   return Country;
 };

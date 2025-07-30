@@ -16,8 +16,8 @@ if (config.use_env_variable) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-fs
-  .readdirSync(__dirname)
+// Load all models first
+fs.readdirSync(__dirname)
   .filter(file => {
     return (
       file.indexOf('.') !== 0 &&
@@ -31,11 +31,25 @@ fs
     db[model.name] = model;
   });
 
+// Set up associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }
 });
+
+// Explicitly define City-Country association if not in model files
+if (db.City && db.Country) {
+  db.City.belongsTo(db.Country, {
+    foreignKey: 'country_id',
+    as: 'country'
+  });
+
+  db.Country.hasMany(db.City, {
+    foreignKey: 'country_id',
+    as: 'cities'
+  });
+}
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
