@@ -51,6 +51,34 @@ if (db.City && db.Country) {
   });
 }
 
+// Define User-Follow associations only after models are loaded
+if (db.User && db.Follow) {
+  db.User.belongsToMany(db.User, {
+    through: db.Follow,
+    as: 'following',
+    foreignKey: 'followerId',
+    otherKey: 'followingId'
+  });
+
+  db.User.belongsToMany(db.User, {
+    through: db.Follow,
+    as: 'followers',
+    foreignKey: 'followingId',
+    otherKey: 'followerId'
+  });
+
+  // Additional direct Follow model associations
+  db.Follow.belongsTo(db.User, {
+    foreignKey: 'followerId',
+    as: 'follower'
+  });
+
+  db.Follow.belongsTo(db.User, {
+    foreignKey: 'followingId',
+    as: 'following'
+  });
+}
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

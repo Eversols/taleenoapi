@@ -1,57 +1,118 @@
 const { Language } = require('../models');
+const { sendJson } = require('../utils/helpers');
 
-// Create
+// Create (Admin only)
 exports.create = async (req, res) => {
-  // if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-
   const { name } = req.body;
+  
   try {
+    // Validate input
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json(
+        sendJson(false, 'Language name is required and must be a string')
+      );
+    }
+
     const language = await Language.create({ name });
-    res.status(201).json({ success: true, language });
+    return res.status(201).json(
+      sendJson(true, 'Language created successfully', { language })
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    // Handle duplicate entry
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json(
+        sendJson(false, 'Language already exists')
+      );
+    }
+    return res.status(500).json(
+      sendJson(false, 'Server error', {
+        error: err.message
+      })
+    );
   }
 };
 
-// Read All
+// Read All (Public)
 exports.getAll = async (req, res) => {
   try {
-    const languages = await Language.findAll();
-    res.status(200).json({ success: true, languages });
+    const languages = await Language.findAll({
+      attributes: ['id', 'name'], // Only return necessary fields
+      order: [['name', 'ASC']]   // Alphabetical order
+    });
+    
+    return res.status(200).json(
+      sendJson(true, 'Languages retrieved successfully', { 
+        count: languages.length,
+        languages 
+      })
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve languages', {
+        error: err.message
+      })
+    );
   }
 };
 
-// Update
+// Update (Admin only)
 exports.update = async (req, res) => {
-  // if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-
   try {
     const { id } = req.params;
     const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json(
+        sendJson(false, 'Language name is required')
+      );
+    }
+
     const language = await Language.findByPk(id);
-    if (!language) return res.status(404).json({ message: 'Not found' });
+    if (!language) {
+      return res.status(404).json(
+        sendJson(false, 'Language not found')
+      );
+    }
 
     await language.update({ name });
-    res.status(200).json({ success: true, language });
+    return res.status(200).json(
+      sendJson(true, 'Language updated successfully', { language })
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json(
+        sendJson(false, 'Language name already exists')
+      );
+    }
+    return res.status(500).json(
+      sendJson(false, 'Failed to update language', {
+        error: err.message
+      })
+    );
   }
 };
 
-// Delete
+// Delete (Admin only)
 exports.remove = async (req, res) => {
-  // if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-
   try {
     const { id } = req.params;
     const language = await Language.findByPk(id);
-    if (!language) return res.status(404).json({ message: 'Not found' });
+    
+    if (!language) {
+      return res.status(404).json(
+        sendJson(false, 'Language not found')
+      );
+    }
 
     await language.destroy();
-    res.status(200).json({ success: true, message: 'Deleted successfully' });
+    return res.status(200).json(
+      sendJson(true, 'Language deleted successfully')
+    );
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json(
+      sendJson(false, 'Failed to delete language', {
+        error: err.message
+      })
+    );
   }
 };

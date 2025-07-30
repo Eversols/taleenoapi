@@ -1,20 +1,116 @@
 const { Follow, User } = require('../models');
+const { sendJson } = require('../utils/helpers');
 
 exports.getFollowing = async (req, res) => {
-  const following = await Follow.findAll({ where: { followerId: req.user.id } });
-  res.json({ success: true, following });
+  try {
+    // Validate user exists
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json(
+        sendJson(false, 'User not found')
+      );
+    }
+
+    const following = await Follow.findAll({ 
+      where: { followerId: req.user.id },
+      include: [{
+        model: User,
+        as: 'following',
+        attributes: ['id', 'username']
+      }],
+      attributes: ['id', 'createdAt']
+    });
+
+    return res.status(200).json(
+      sendJson(true, 'Following list retrieved successfully', {
+        count: following.length,
+        following: following.map(f => ({
+          id: f.id,
+          createdAt: f.createdAt,
+          user: f.following
+        }))
+      })
+    );
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve following list', {
+        error: error.message
+      })
+    );
+  }
 };
 
 exports.follow = async (req, res) => {
-  const existing = await Follow.findOne({ where: { followerId: req.user.id, followingId: req.params.userId } });
-  if (existing) return res.status(400).json({ message: 'Already following' });
-  await Follow.create({ followerId: req.user.id, followingId: req.params.userId });
-  res.json({ success: true });
+  try {
+    // Validate target user exists
+    const targetUser = await User.findByPk(req.params.userId);
+    if (!targetUser) {
+      return res.status(404).json(
+        sendJson(false, 'User to follow not found')
+      );
+    }
+
+    // Check if already following
+    const existing = await Follow.findOne({ 
+      where: { 
+        followerId: req.user.id, 
+        followingId: req.params.userId 
+      }
+    });
+    
+    if (existing) {
+      return res.status(400).json(
+        sendJson(false, 'You are already following this user')
+      );
+    }
+
+    // Create follow relationship
+    const follow = await Follow.create({ 
+      followerId: req.user.id, 
+      followingId: req.params.userId 
+    });
+
+    return res.status(201).json(
+      sendJson(true, 'Successfully followed user', {
+        followId: follow.id,
+        followingId: follow.followingId
+      })
+    );
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to follow user', {
+        error: error.message
+      })
+    );
+  }
 };
 
 exports.unfollow = async (req, res) => {
-  const follow = await Follow.findOne({ where: { followerId: req.user.id, followingId: req.params.userId } });
-  if (!follow) return res.status(404).json({ message: 'Not following' });
-  await follow.destroy();
-  res.json({ success: true });
+  try {
+    const follow = await Follow.findOne({ 
+      where: { 
+        followerId: req.user.id, 
+        followingId: req.params.userId 
+      }
+    });
+    
+    if (!follow) {
+      return res.status(404).json(
+        sendJson(false, 'You are not following this user')
+      );
+    }
+
+    await follow.destroy();
+    return res.status(200).json(
+      sendJson(true, 'Successfully unfollowed user', {
+        unfollowedUserId: req.params.userId
+      })
+    );
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to unfollow user', {
+        error: error.message
+      })
+    );
+  }
 };
