@@ -113,7 +113,13 @@ module.exports = (sequelize, DataTypes) => {
     deleted_at: {
       type: DataTypes.DATE,
       allowNull: true
-    }
+    },
+    on_board: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+
   }, {
     sequelize,
     modelName: 'User',
