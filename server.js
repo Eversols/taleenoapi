@@ -13,9 +13,11 @@ const { swaggerUi, swaggerDocument } = require('./swaggerDocument');
 const talentCategoryRoutes = require('./routes/talentCategoryRoutes');
 const feedRoutes = require('./routes/feedRoutes');
 const levelRoutes = require('./routes/levelRoutes');
+const metaRoutes = require('./routes/metaRoutes');
 require('dotenv').config();
 
 app.use(express.json());
+app.use('/api', metaRoutes);
 app.use('/api/levels', levelRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/auth', authRoutes);
