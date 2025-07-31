@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client } = require('../models');
+const { User, Talent, Client ,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 
 exports.register = async (req, res) => {
@@ -141,6 +141,7 @@ exports.verifyOTP = async (req, res) => {
     email: user.email,
     role: user.role,
     is_verified: user.is_verified,
+    on_board: user.on_board,
     ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
     };
 
@@ -357,6 +358,7 @@ exports.updateProfile = async (req, res) => {
         profile_photo
       });
     } else {
+      await user.update({ on_board: 1 });
       await user.client.update({
         full_name,
         gender,
@@ -365,6 +367,7 @@ exports.updateProfile = async (req, res) => {
         city,
         profile_photo
       });
+      
     }
 
     return res.status(200).json(
@@ -374,6 +377,74 @@ exports.updateProfile = async (req, res) => {
     console.error(error);
     return res.status(500).json(
       sendJson(false, 'Server error', { error: error.message })
+    );
+  }
+};
+exports.updateTalentDetails = async (req, res) => {
+  try {
+    const { skills, experience_level, availability } = req.body;
+
+    // Validate required fields
+    if (!skills && !experience_level && !availability) {
+      return res.status(400).json(
+        sendJson(false, 'At least one field (skills, experience_level, or availability) is required for update')
+      );
+    }
+
+    // Fetch talent with user data
+    const user = await User.findByPk(req.user.id, {
+      include: [{
+        association: 'talent',
+        attributes: ['id', 'skills', 'experience_level', 'availability']
+      }],
+      attributes: ['id', 'username', 'email']
+    });
+    
+    if (!user || !user.talent) {
+      return res.status(404).json(
+        sendJson(false, 'Talent profile not found')
+      );
+    }
+
+    // Prepare update data
+    const updateData = {};
+    if (skills) updateData.skills = skills;
+    if (experience_level) updateData.experience_level = experience_level;
+    if (availability) updateData.availability = JSON.stringify(availability);
+
+    // Update talent details
+    await Talent.update(updateData, {
+      where: { id: user.talent.id }
+    });
+
+    // Fetch updated talent data
+    const updatedTalent = await Talent.findByPk(user.talent.id, {
+      attributes: ['id', 'skills', 'experience_level', 'availability'],
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'username', 'email']
+      }]
+    });
+    await user.update({ on_board: 1 });
+    // Parse availability if it exists
+    const responseData = {
+      ...updatedTalent.get({ plain: true }),
+      availability: updatedTalent.availability ? JSON.parse(updatedTalent.availability) : null
+    };
+
+    return res.status(200).json(
+      sendJson(true, 'Talent details updated successfully', {
+        talent: responseData
+      })
+    );
+
+  } catch (error) {
+    console.error('Error updating talent details:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to update talent details', {
+        error: error.message
+      })
     );
   }
 };
