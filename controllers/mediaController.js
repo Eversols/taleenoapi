@@ -57,9 +57,17 @@ exports.upload = async (req, res) => {
 
 exports.list = async (req, res) => {
   try {
+
     const media = await Media.findAll({ 
       where: { userId: req.user.id },
-      attributes: ['id', 'title', 'description', 'fileUrl', 'type', 'visibility', 'createdAt']
+      attributes: ['id', 'title', 'description', 'fileUrl', 'type', 'visibility', 'likes', 'shares', 'createdAt'],
+      include: [
+        {
+          model: Skill,
+          as: 'skill',
+          attributes: ['id', 'name'] // Only include relevant skill fields
+        }
+      ]
     });
 
     return res.status(200).json(

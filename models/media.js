@@ -22,10 +22,18 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     {
-      tableName: 'media',     // 👈 force table name to lowercase
-      timestamps: true,       // 👈 keep if you're using createdAt/updatedAt
+      tableName: 'media',
+      timestamps: true
     }
   );
+
+  // Define associations here
+  Media.associate = (models) => {
+    Media.belongsTo(models.Skill, {
+      foreignKey: 'skill_id',
+      as: 'skill'
+    });
+  };
 
   return Media;
 };
