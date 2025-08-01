@@ -18,7 +18,7 @@ exports.upload = async (req, res) => {
       description: req.body.description,
       fileUrl,
       type: req.file.mimetype.includes('video') ? 'video' : 'image',
-      visibility: req.body.visibility || 'public'
+      visibility: req.body.visibility || 0
     });
 
     return res.status(201).json(
