@@ -1,4 +1,4 @@
-const { Media } = require('../models');
+const { Media , Skill  } = require('../models');
 const path = require('path');
 const { sendJson } = require('../utils/helpers');
 const fs = require('fs');
@@ -14,13 +14,19 @@ exports.upload = async (req, res) => {
     const fileUrl = `/uploads/${req.file.filename}`;
     const media = await Media.create({
       userId: req.user.id,
+      skill_id: req.body.skill_id,
       title: req.body.title,
       description: req.body.description,
       fileUrl,
       type: req.file.mimetype.includes('video') ? 'video' : 'image',
-      visibility: req.body.visibility || 0
+      visibility: req.body.visibility === '1' ? true : false
     });
-
+    let skill = null;
+    if (req.body.skill_id) {
+      skill = await Skill.findByPk(req.body.skill_id, {
+        attributes: ['id', 'name']
+      });
+    }
     return res.status(201).json(
       sendJson(true, 'Media uploaded successfully', {
         media: {
@@ -29,6 +35,7 @@ exports.upload = async (req, res) => {
           description: media.description,
           fileUrl: media.fileUrl,
           type: media.type,
+          skill: skill || null,  // Returns null if no skill found
           visibility: media.visibility,
           createdAt: media.createdAt
         }
@@ -84,20 +91,38 @@ exports.update = async (req, res) => {
         sendJson(false, 'You are not authorized to update this media')
       );
     }
+    if (!req.file) {
+      return res.status(400).json(
+        sendJson(false, 'No file uploaded')
+      );
+    }
 
+    const fileUrl = `/uploads/${req.file.filename}`;
     await media.update({
+      skill_id: req.body.skill_id,
       title: req.body.title,
       description: req.body.description,
-      visibility: req.body.visibility
+      fileUrl,
+      type: req.file.mimetype.includes('video') ? 'video' : 'image',
+      visibility: req.body.visibility === '1' ? true : false
     });
-
+    let skill = null;
+    if (req.body.skill_id) {
+      skill = await Skill.findByPk(req.body.skill_id, {
+        attributes: ['id', 'name']
+      });
+    }
     return res.status(200).json(
       sendJson(true, 'Media updated successfully', {
         media: {
           id: media.id,
           title: media.title,
           description: media.description,
-          visibility: media.visibility
+          fileUrl: media.fileUrl,
+          type: media.type,
+          skill: skill || null,  // Returns null if no skill found
+          visibility: media.visibility,
+          createdAt: media.createdAt
         }
       })
     );

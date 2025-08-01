@@ -9,9 +9,17 @@ module.exports = (sequelize, DataTypes) => {
       description: DataTypes.TEXT,
       fileUrl: DataTypes.STRING,
       type: DataTypes.STRING,
-      visibility: DataTypes.STRING,
+      visibility: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
+      },
       likes: DataTypes.INTEGER,
       shares: DataTypes.INTEGER,
+      skill_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+      }
     },
     {
       tableName: 'media',     // 👈 force table name to lowercase
