@@ -146,7 +146,7 @@ exports.update = async (req, res) => {
 exports.remove = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
-    
+
     if (!media) {
       return res.status(404).json(
         sendJson(false, 'Media not found')
@@ -159,13 +159,29 @@ exports.remove = async (req, res) => {
       );
     }
 
-    // Delete the file from storage
-    fs.unlinkSync(path.join(__dirname, '../public', media.fileUrl));
-    
-    await media.destroy();
-    return res.status(200).json(
-      sendJson(true, 'Media deleted successfully')
-    );
+    // Construct full path to the file
+    const fullPath = path.join(__dirname, '../public', media.fileUrl);
+
+    // Safely attempt to delete the file
+    fs.access(fullPath, fs.constants.F_OK, async (err) => {
+      if (!err) {
+        try {
+          await fs.promises.unlink(fullPath);
+        } catch (unlinkError) {
+          console.warn("Failed to delete file:", unlinkError.message);
+        }
+      } else {
+        console.warn("File does not exist, skipping deletion:", fullPath);
+      }
+
+      // Remove the database record after handling file
+      await media.destroy();
+
+      return res.status(200).json(
+        sendJson(true, 'Media deleted successfully')
+      );
+    });
+
   } catch (error) {
     return res.status(500).json(
       sendJson(false, 'Failed to delete media', {

@@ -1,245 +1,212 @@
-const Booking = require('../models/Booking');
-const Talent = require('../models/Talent');
-const ErrorResponse = require('../utils/errorResponse');
+const { Booking, Client, Talent, User, Skill } = require('../models');
+const { Op } = require('sequelize');
+const { sequelize } = require('../models');
+const { sendJson } = require('../utils/helpers');
 
-// @desc    Get all bookings
-// @route   GET /api/v1/bookings
-// @route   GET /api/v1/talents/:talentId/bookings
-// @access  Private
-exports.getBookings = async (req, res, next) => {
+exports.getBookings = async (req, res) => {
   try {
-    let query;
+    const [results] = await sequelize.query(`
+      SELECT 
+        b.id AS booking_id,
+        b.created_at,
+        b.time_slot,
+        b.status,
+        b.note,
+        
+        c.id AS client_id,
+        c.full_name AS client_full_name,
+        c.gender AS client_gender,
+        c.country AS client_country,
+        c.city AS client_city,
+        uc.id AS client_user_id,
+        uc.username AS client_username,
+        uc.email AS client_email,
+        uc.phone_number AS client_phone_number,
 
-    if (req.params.talentId) {
-      query = Booking.find({ talent: req.params.talentId })
-        .populate({
-          path: 'client',
-          select: 'fullName profilePhoto',
-        })
-        .populate({
-          path: 'talent',
-          select: 'fullName mainTalent hourlyRate',
-        });
-    } else if (req.user.role === 'client') {
-      query = Booking.find({ client: req.user.id })
-        .populate({
-          path: 'talent',
-          select: 'fullName mainTalent hourlyRate profilePhoto',
-        });
-    } else if (req.user.role === 'talent') {
-      query = Booking.find({ talent: req.user.id })
-        .populate({
-          path: 'client',
-          select: 'fullName profilePhoto',
-        });
-    } else {
-      query = Booking.find()
-        .populate({
-          path: 'client',
-          select: 'fullName profilePhoto',
-        })
-        .populate({
-          path: 'talent',
-          select: 'fullName mainTalent hourlyRate profilePhoto',
-        });
-    }
+        t.id AS talent_id,
+        t.full_name AS talent_full_name,
+        t.hourly_rate AS talent_hourly_rate,
+        t.city AS talent_city,
+        ut.id AS talent_user_id,
+        ut.username AS talent_username,
+        ut.email AS talent_email,
+        ut.phone_number AS talent_phone_number,
 
-    const bookings = await query;
+        s.id AS skill_id,
+        s.name AS skill_name
 
-    res.status(200).json({
-      success: true,
-      count: bookings.length,
-      data: bookings,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+      FROM bookings b
+      LEFT JOIN clients c ON b.client_id = c.id
+      LEFT JOIN users uc ON c.user_id = uc.id
 
-// @desc    Get single booking
-// @route   GET /api/v1/bookings/:id
-// @access  Private
-exports.getBooking = async (req, res, next) => {
-  try {
-    const booking = await Booking.findById(req.params.id)
-      .populate({
-        path: 'client',
-        select: 'fullName profilePhoto',
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN users ut ON t.user_id = ut.id
+
+      LEFT JOIN skills s ON b.skill_id = s.id
+
+      ORDER BY b.created_at DESC
+    `);
+
+    const bookings = results.map(row => ({
+      id: row.booking_id,
+      created_at: row.created_at,
+      time_slot: row.time_slot,
+      status: row.status,
+      note: row.note,
+      client: {
+        id: row.client_id,
+        full_name: row.client_full_name,
+        gender: row.client_gender,
+        country: row.client_country,
+        city: row.client_city,
+        user: {
+          id: row.client_user_id,
+          username: row.client_username,
+          email: row.client_email,
+          phone_number: row.client_phone_number
+        }
+      },
+      talent: {
+        id: row.talent_id,
+        full_name: row.talent_full_name,
+        hourly_rate: row.talent_hourly_rate,
+        city: row.talent_city,
+        user: {
+          id: row.talent_user_id,
+          username: row.talent_username,
+          email: row.talent_email,
+          phone_number: row.talent_phone_number
+        }
+      },
+      skill: {
+        id: row.skill_id,
+        name: row.skill_name
+      }
+    }));
+
+    return res.status(200).json(
+      sendJson(true, 'Bookings retrieved successfully', {
+        count: bookings.length,
+        bookings
       })
-      .populate({
-        path: 'talent',
-        select: 'fullName mainTalent hourlyRate profilePhoto',
-      });
-
-    if (!booking) {
-      return next(
-        new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Make sure user is booking owner or admin
-    if (
-      booking.client._id.toString() !== req.user.id &&
-      booking.talent._id.toString() !== req.user.id &&
-      req.user.role !== 'admin'
-    ) {
-      return next(
-        new ErrorResponse(
-          `User ${req.user.id} is not authorized to access this booking`,
-          401
-        )
-      );
-    }
-
-    res.status(200).json({
-      success: true,
-      data: booking,
-    });
-  } catch (err) {
-    next(err);
+    );
+  } catch (error) {
+    console.error('Booking list error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch bookings', {
+        error: error.message
+      })
+    );
   }
 };
 
-// @desc    Create booking
-// @route   POST /api/v1/talents/:talentId/bookings
-// @access  Private/Client
-exports.createBooking = async (req, res, next) => {
+exports.createBooking = async (req, res) => {
   try {
-    // Check if user is client
-    if (req.user.role !== 'client') {
-      return next(
-        new ErrorResponse(
-          `User with role ${req.user.role} is not authorized to create a booking`,
-          401
-        )
+    const { talent_id, skill_id, created_at, time_slot, note } = req.body;
+
+    // Validate required fields
+    if (!talent_id || !skill_id || !created_at || !time_slot) {
+      return res.status(400).json(
+        sendJson(false, 'Talent ID, skill ID, date and time slot are required')
       );
     }
 
-    req.body.talent = req.params.talentId;
-    req.body.client = req.user.id;
+    // Get client profile
+    const client = await Client.findOne({ 
+      where: { user_id: req.user.id },
+      include: [{
+        model: User,
+        attributes: ['id', 'username']
+      }]
+    });
 
-    const talent = await Talent.findById(req.params.talentId);
+    if (!client) {
+      return res.status(404).json(
+        sendJson(false, 'Client profile not found')
+      );
+    }
+
+    // Check for duplicate booking
+    const existing = await Booking.findOne({
+      where: {
+        client_id: client.id,
+        talent_id,
+        created_at,
+        time_slot
+      }
+    });
+
+    if (existing) {
+      return res.status(409).json(
+        sendJson(false, 'Booking already exists for this time slot')
+      );
+    }
+
+    // Verify talent exists
+    const talent = await Talent.findByPk(talent_id, {
+      include: [{
+        model: User,
+        attributes: ['id', 'username']
+      }]
+    });
+
     if (!talent) {
-      return next(
-        new ErrorResponse(`Talent not found with id of ${req.params.talentId}`, 404)
+      return res.status(404).json(
+        sendJson(false, 'Talent not found')
       );
     }
 
-    // Check if talent is available at requested time
-    const isAvailable = await checkTalentAvailability(
-      req.params.talentId,
-      req.body.startTime,
-      req.body.endTime
+    // Verify skill exists
+    const skill = await Skill.findByPk(skill_id);
+    if (!skill) {
+      return res.status(404).json(
+        sendJson(false, 'Skill not found')
+      );
+    }
+
+    const booking = await Booking.create({
+      client_id: client.id,
+      talent_id,
+      skill_id,
+      created_at,
+      time_slot,
+      note: note || null,
+      status: 'pending' // Default status
+    });
+
+    return res.status(201).json(
+      sendJson(true, 'Booking created successfully', {
+        booking: {
+          id: booking.id,
+          created_at: booking.created_at,
+          time_slot: booking.time_slot,
+          status: booking.status,
+          note: booking.note,
+          client: {
+            id: client.id,
+            full_name: client.full_name,
+            user: client.user
+          },
+          talent: {
+            id: talent.id,
+            full_name: talent.full_name,
+            user: talent.user
+          },
+          skill: {
+            id: skill.id,
+            name: skill.name
+          },
+          createdAt: booking.createdAt
+        }
+      })
     );
 
-    if (!isAvailable) {
-      return next(
-        new ErrorResponse('Talent is not available at the requested time', 400)
-      );
-    }
-
-    const booking = await Booking.create(req.body);
-
-    res.status(201).json({
-      success: true,
-      data: booking,
-    });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error('Booking creation error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to create booking', {
+        error: error.message
+      })
+    );
   }
-};
-
-// @desc    Update booking status
-// @route   PUT /api/v1/bookings/:id/status
-// @access  Private/Talent
-exports.updateBookingStatus = async (req, res, next) => {
-  try {
-    let booking = await Booking.findById(req.params.id);
-
-    if (!booking) {
-      return next(
-        new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Make sure user is talent owner or admin
-    if (booking.talent.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(
-        new ErrorResponse(
-          `User ${req.user.id} is not authorized to update this booking`,
-          401
-        )
-      );
-    }
-
-    // Update status
-    booking.status = req.body.status;
-    await booking.save();
-
-    res.status(200).json({
-      success: true,
-      data: booking,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Delete booking
-// @route   DELETE /api/v1/bookings/:id
-// @access  Private
-exports.deleteBooking = async (req, res, next) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-
-    if (!booking) {
-      return next(
-        new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Make sure user is booking owner or admin
-    if (
-      booking.client.toString() !== req.user.id &&
-      booking.talent.toString() !== req.user.id &&
-      req.user.role !== 'admin'
-    ) {
-      return next(
-        new ErrorResponse(
-          `User ${req.user.id} is not authorized to delete this booking`,
-          401
-        )
-      );
-    }
-
-    await booking.remove();
-
-    res.status(200).json({
-      success: true,
-      data: {},
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// Helper function to check talent availability
-const checkTalentAvailability = async (talentId, startTime, endTime) => {
-  // Check if talent has availability set for the requested day
-  const talent = await Talent.findById(talentId);
-  if (!talent) return false;
-
-  // Check if talent is already booked at the requested time
-  const overlappingBookings = await Booking.find({
-    talent: talentId,
-    $or: [
-      {
-        startTime: { $lt: endTime },
-        endTime: { $gt: startTime },
-      },
-    ],
-    status: { $ne: 'cancelled' },
-  });
-
-  return overlappingBookings.length === 0;
 };
