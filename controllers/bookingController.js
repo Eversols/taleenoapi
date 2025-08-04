@@ -102,113 +102,90 @@ exports.getBookings = async (req, res) => {
 
 exports.createBooking = async (req, res) => {
   try {
-    const { talent_id, skill_id, created_at, time_slot, note } = req.body;
+    const { talent_id, skill_id, dates, time_slots, note } = req.body;
 
-    // Validate required fields
-    if (!talent_id || !skill_id || !created_at || !time_slot) {
+    // Validate input
+    if (!talent_id || !skill_id || !Array.isArray(dates) || !Array.isArray(time_slots)) {
       return res.status(400).json(
-        sendJson(false, 'Talent ID, skill ID, date and time slot are required')
+        sendJson(false, 'Talent ID, skill ID, dates and time slots are required')
       );
     }
 
     // Get client profile
-    const client = await Client.findOne({ 
+    const client = await Client.findOne({
       where: { user_id: req.user.id },
       include: [{
         model: User,
-        as: 'user', // Add this line to specify the alias
+        as: 'user',
         attributes: ['id', 'username']
       }]
     });
 
     if (!client) {
-      return res.status(404).json(
-        sendJson(false, 'Client profile not found')
-      );
+      return res.status(404).json(sendJson(false, 'Client profile not found'));
     }
 
-    // Check for duplicate booking
-    const existing = await Booking.findOne({
-      where: {
-        client_id: client.id,
-        talent_id,
-        created_at,
-        time_slot
-      }
-    });
-
-    if (existing) {
-      return res.status(409).json(
-        sendJson(false, 'Booking already exists for this time slot')
-      );
-    }
-
-    // Verify talent exists
-    const talent = await Talent.findByPk(talent_id, {
-      include: [{
-        model: User,
-        as: 'user', // Add this line to specify the alias
-        attributes: ['id', 'username']
-      }]
-    });
-
+    // Validate talent
+    const talent = await Talent.findByPk(talent_id);
     if (!talent) {
-      return res.status(404).json(
-        sendJson(false, 'Talent not found')
-      );
+      return res.status(404).json(sendJson(false, 'Talent not found'));
     }
 
-    // Verify skill exists
+    // Validate skill
     const skill = await Skill.findByPk(skill_id);
     if (!skill) {
-      return res.status(404).json(
-        sendJson(false, 'Skill not found')
-      );
+      return res.status(404).json(sendJson(false, 'Skill not found'));
     }
 
-    const booking = await Booking.create({
-      client_id: client.id,
-      talent_id,
-      skill_id,
-      created_at,
-      time_slot,
-      note: note || null,
-      status: 'pending' // Default status
-    });
+    // Prepare bookings and check existing
+    const bookingData = [];
+    const duplicates = [];
+
+    for (const date of dates) {
+      for (const slot of time_slots) {
+        const existing = await Booking.findOne({
+          where: {
+            client_id: client.id,
+            talent_id,
+            created_at: date,
+            time_slot: slot
+          }
+        });
+
+        if (existing) {
+          duplicates.push({ date, time_slot: slot });
+        } else {
+          bookingData.push({
+            client_id: client.id,
+            talent_id,
+            skill_id,
+            created_at: date,
+            time_slot: slot,
+            note: note || null,
+            status: 'pending'
+          });
+        }
+      }
+    }
+
+    let createdBookings = [];
+    if (bookingData.length > 0) {
+      createdBookings = await Booking.bulkCreate(bookingData);
+    }
 
     return res.status(201).json(
-      sendJson(true, 'Booking created successfully', {
-        booking: {
-          id: booking.id,
-          created_at: booking.created_at,
-          time_slot: booking.time_slot,
-          status: booking.status,
-          note: booking.note,
-          client: {
-            id: client.id,
-            full_name: client.full_name,
-            user: client.user
-          },
-          talent: {
-            id: talent.id,
-            full_name: talent.full_name,
-            user: talent.user
-          },
-          skill: {
-            id: skill.id,
-            name: skill.name
-          },
-          createdAt: booking.createdAt
-        }
+      sendJson(true, 'Booking request processed', {
+        created_count: createdBookings.length,
+        skipped_count: duplicates.length,
+        created: createdBookings,
+        already_exists: duplicates
       })
     );
 
   } catch (error) {
     console.error('Booking creation error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to create booking', {
-        error: error.message
-      })
+      sendJson(false, 'Failed to create bookings', { error: error.message })
     );
   }
 };
