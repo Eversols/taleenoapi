@@ -116,6 +116,7 @@ exports.createBooking = async (req, res) => {
       where: { user_id: req.user.id },
       include: [{
         model: User,
+        as: 'user', // Add this line to specify the alias
         attributes: ['id', 'username']
       }]
     });
@@ -146,6 +147,7 @@ exports.createBooking = async (req, res) => {
     const talent = await Talent.findByPk(talent_id, {
       include: [{
         model: User,
+        as: 'user', // Add this line to specify the alias
         attributes: ['id', 'username']
       }]
     });
