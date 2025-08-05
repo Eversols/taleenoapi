@@ -1,4 +1,4 @@
-const { Media , Skill  } = require('../models');
+const { Media, Skill } = require('../models');
 const path = require('path');
 const { sendJson } = require('../utils/helpers');
 const fs = require('fs');
@@ -57,22 +57,30 @@ exports.upload = async (req, res) => {
 
 exports.list = async (req, res) => {
   try {
+    const BASE_URL = process.env.APP_URL;
 
-    const media = await Media.findAll({ 
+    const media = await Media.findAll({
       where: { userId: req.user.id },
       attributes: ['id', 'title', 'description', 'fileUrl', 'type', 'visibility', 'likes', 'shares', 'createdAt'],
       include: [
         {
           model: Skill,
           as: 'skill',
-          attributes: ['id', 'name'] // Only include relevant skill fields
+          attributes: ['id', 'name']
         }
       ]
     });
 
+    // Append BASE_URL to fileUrl
+    const formattedMedia = media.map(item => {
+      const data = item.toJSON();
+      data.fileUrl = data.fileUrl ? `${BASE_URL}${data.fileUrl}` : null;
+      return data;
+    });
+
     return res.status(200).json(
       sendJson(true, 'Media retrieved successfully', {
-        media
+        media: formattedMedia
       })
     );
   } catch (error) {
@@ -87,7 +95,7 @@ exports.list = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
-    
+
     if (!media) {
       return res.status(404).json(
         sendJson(false, 'Media not found')
@@ -194,7 +202,7 @@ exports.remove = async (req, res) => {
 exports.like = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
-    
+
     if (!media) {
       return res.status(404).json(
         sendJson(false, 'Media not found')
@@ -219,7 +227,7 @@ exports.like = async (req, res) => {
 exports.share = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
-    
+
     if (!media) {
       return res.status(404).json(
         sendJson(false, 'Media not found')
