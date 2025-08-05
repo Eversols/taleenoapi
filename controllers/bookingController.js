@@ -47,46 +47,61 @@ exports.getBookings = async (req, res) => {
       ORDER BY b.created_at DESC
     `);
 
-    const bookings = results.map(row => ({
-      id: row.booking_id,
-      created_at: row.created_at,
-      time_slot: row.time_slot,
-      status: row.status,
-      note: row.note,
-      client: {
-        id: row.client_id,
-        full_name: row.client_full_name,
-        gender: row.client_gender,
-        country: row.client_country,
-        city: row.client_city,
-        user: {
-          id: row.client_user_id,
-          username: row.client_username,
-          email: row.client_email,
-          phone_number: row.client_phone_number
+    let totalHour = 0;
+    let totalRate = 0;
+
+    const bookings = results.map(row => {
+      const rate = parseFloat(row.talent_hourly_rate) || 0;
+      
+      // Example: assuming 1 time_slot = 1 hour, adjust if needed
+      const hours = 1;
+
+      totalHour += hours;
+      totalRate += rate;
+
+      return {
+        id: row.booking_id,
+        created_at: row.created_at,
+        time_slot: row.time_slot,
+        status: row.status,
+        note: row.note,
+        client: {
+          id: row.client_id,
+          full_name: row.client_full_name,
+          gender: row.client_gender,
+          country: row.client_country,
+          city: row.client_city,
+          user: {
+            id: row.client_user_id,
+            username: row.client_username,
+            email: row.client_email,
+            phone_number: row.client_phone_number
+          }
+        },
+        talent: {
+          id: row.talent_id,
+          full_name: row.talent_full_name,
+          hourly_rate: rate,
+          city: row.talent_city,
+          user: {
+            id: row.talent_user_id,
+            username: row.talent_username,
+            email: row.talent_email,
+            phone_number: row.talent_phone_number
+          }
+        },
+        skill: {
+          id: row.skill_id,
+          name: row.skill_name
         }
-      },
-      talent: {
-        id: row.talent_id,
-        full_name: row.talent_full_name,
-        hourly_rate: row.talent_hourly_rate,
-        city: row.talent_city,
-        user: {
-          id: row.talent_user_id,
-          username: row.talent_username,
-          email: row.talent_email,
-          phone_number: row.talent_phone_number
-        }
-      },
-      skill: {
-        id: row.skill_id,
-        name: row.skill_name
-      }
-    }));
+      };
+    });
 
     return res.status(200).json(
       sendJson(true, 'Bookings retrieved successfully', {
-        count: bookings.length,
+        totalTask: bookings.length,
+        totalHour,
+        totalRate,
         bookings
       })
     );
