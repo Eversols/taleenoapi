@@ -5,6 +5,7 @@ const { sendJson } = require('../utils/helpers');
 
 exports.getBookings = async (req, res) => {
   try {
+    const BASE_URL = process.env.APP_URL;
     const [results] = await sequelize.query(`
       SELECT 
         b.id AS booking_id,
@@ -15,6 +16,8 @@ exports.getBookings = async (req, res) => {
         
         c.id AS client_id,
         c.full_name AS client_full_name,
+        c.profile_photo AS profile_photo,
+        
         c.gender AS client_gender,
         c.country AS client_country,
         c.city AS client_city,
@@ -68,6 +71,7 @@ exports.getBookings = async (req, res) => {
         client: {
           id: row.client_id,
           full_name: row.client_full_name,
+          profileImage: row?.profile_photo ? `${BASE_URL}${row.profile_photo}` : null,
           gender: row.client_gender,
           country: row.client_country,
           city: row.client_city,
