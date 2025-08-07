@@ -3,9 +3,23 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 
+
+// ✅ Define helper function OUTSIDE the try block
+function parseAvailability(value) {
+  if (!value) return null;
+
+  try {
+    return typeof value === 'string' ? JSON.parse(value) : value;
+  } catch (e) {
+    console.warn('Invalid availability format:', value);
+    return null;
+  }
+}
+
 exports.getBookings = async (req, res) => {
   try {
-    const BASE_URL = process.env.APP_URL;
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    
     const [results] = await sequelize.query(`
       SELECT 
         b.id AS booking_id,
@@ -17,10 +31,10 @@ exports.getBookings = async (req, res) => {
         c.id AS client_id,
         c.full_name AS client_full_name,
         c.profile_photo AS profile_photo,
-        
         c.gender AS client_gender,
         c.country AS client_country,
         c.city AS client_city,
+
         uc.id AS client_user_id,
         uc.username AS client_username,
         uc.email AS client_email,
@@ -30,6 +44,8 @@ exports.getBookings = async (req, res) => {
         t.full_name AS talent_full_name,
         t.hourly_rate AS talent_hourly_rate,
         t.city AS talent_city,
+        t.availability AS availability,
+
         ut.id AS talent_user_id,
         ut.username AS talent_username,
         ut.email AS talent_email,
@@ -41,83 +57,93 @@ exports.getBookings = async (req, res) => {
       FROM bookings b
       LEFT JOIN clients c ON b.client_id = c.id
       LEFT JOIN users uc ON c.user_id = uc.id
-
       LEFT JOIN talents t ON b.talent_id = t.id
       LEFT JOIN users ut ON t.user_id = ut.id
-
       LEFT JOIN skills s ON b.skill_id = s.id
-
       ORDER BY b.created_at DESC
     `);
 
     let totalHour = 0;
     let totalRate = 0;
 
-    const bookings = results.map(row => {
+    const Bookings = results.map(row => {
       const rate = parseFloat(row.talent_hourly_rate) || 0;
-      
-      // Example: assuming 1 time_slot = 1 hour, adjust if needed
-      const hours = 1;
-
-      totalHour += hours;
+      totalHour += 1;
       totalRate += rate;
 
-      return {
-        id: row.booking_id,
-        created_at: row.created_at,
-        time_slot: row.time_slot,
-        status: row.status,
-        note: row.note,
-        client: {
-          id: row.client_id,
-          full_name: row.client_full_name,
-          profileImage: row?.profile_photo ? `${BASE_URL}${row.profile_photo}` : null,
-          gender: row.client_gender,
-          country: row.client_country,
-          city: row.client_city,
-          user: {
-            id: row.client_user_id,
-            username: row.client_username,
-            email: row.client_email,
-            phone_number: row.client_phone_number
-          }
-        },
-        talent: {
-          id: row.talent_id,
-          full_name: row.talent_full_name,
-          hourly_rate: rate,
-          city: row.talent_city,
-          user: {
-            id: row.talent_user_id,
-            username: row.talent_username,
-            email: row.talent_email,
-            phone_number: row.talent_phone_number
-          }
-        },
-        skill: {
-          id: row.skill_id,
-          name: row.skill_name
+      let time = "12:00 AM";
+      let dates = "1970-01-01";
+      let day = "Monday";
+
+      try {
+        const createdDate = new Date(row.created_at);
+        if (!isNaN(createdDate.getTime())) {
+          dates = createdDate.toISOString().split('T')[0];
+          day = createdDate.toLocaleDateString('en-US', { weekday: 'long' });
         }
+
+        if (typeof row.time_slot === 'string') {
+          const [startTime] = row.time_slot.split(' - ');
+          if (startTime) {
+            const [hourStr = '0', minuteStr = '0'] = startTime.split(':');
+            const hour = parseInt(hourStr, 10);
+            const minute = parseInt(minuteStr, 10);
+            const timeDate = new Date();
+            timeDate.setHours(hour, minute, 0, 0);
+            time = timeDate.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Formatting error:', e);
+      }
+
+      const profileImage = row.profile_photo
+        ? row.profile_photo.startsWith('http')
+          ? row.profile_photo
+          : `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
+        : null;
+
+      const locationParts = [row.talent_city, row.client_city].filter(Boolean);
+      const location = locationParts.join(', ');
+
+      return {
+        profileImage,
+        booking_id: row.booking_id || '',
+        mainTalent: row.talent_full_name || '',
+        location,
+        date: parseAvailability(row.availability),
+        time,
+        dates,
+        day,
+        status: row.status || 'pending',
+        description: row.note || ''
       };
     });
+      return res.status(200).json(
+          sendJson(true, 'Bookings retrieved successfully', {
+          totalTask: Bookings.length,
+          totalHour,
+          totalRate: parseFloat(totalRate.toFixed(2)),
+          Bookings
+        })
+      );
 
-    return res.status(200).json(
-      sendJson(true, 'Bookings retrieved successfully', {
-        totalTask: bookings.length,
-        totalHour,
-        totalRate,
-        bookings
-      })
-    );
   } catch (error) {
-    console.error('Booking list error:', error);
-    return res.status(500).json(
-      sendJson(false, 'Failed to fetch bookings', {
-        error: error.message
-      })
-    );
+
+     return res.status(500).json(
+          sendJson(true, 'Failed to fetch bookings', {
+          totalTask: Bookings.length,
+         error: error.message
+        })
+      );
   }
 };
+
+
 
 exports.createBooking = async (req, res) => {
   try {
