@@ -3,7 +3,17 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 
-
+const BookingStatusEnum = [
+  'pending',
+  'accepted',
+  'inProgress',
+  'completed',
+  'reviewedAndCompleted',
+  'requestedForRescheduleByUser',
+  'requestedForRescheduleByTalent',
+  'canceledByUser',
+  'canceledByTalent',
+];
 // ✅ Define helper function OUTSIDE the try block
 function parseAvailability(value) {
   if (!value) return null;
@@ -370,5 +380,53 @@ exports.getBookingDetails = async (req, res) => {
     return res.status(500).json(
       sendJson(false, 'Failed to fetch booking details', { error: error.message })
     );
+  }
+};
+
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const { booking_id, status } = req.body;
+
+    if (!booking_id || !status) {
+      return res.status(400).json({
+        success: false,
+        message: 'booking_id and status are required'
+      });
+    }
+
+    if (!BookingStatusEnum.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status value',
+        valid_statuses: BookingStatusEnum
+      });
+    }
+
+    const booking = await Booking.findByPk(booking_id);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Update status
+    booking.status = status;
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Booking status updated successfully',
+      updated_booking: booking
+    });
+
+  } catch (error) {
+    console.error('Error updating booking status:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
   }
 };

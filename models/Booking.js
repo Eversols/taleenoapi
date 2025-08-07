@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
     time_slot: DataTypes.STRING,
     note: DataTypes.TEXT,
     status: {
-      type: DataTypes.ENUM('pending', 'accepted', 'rejected', 'cancelled'),
+      type: DataTypes.ENUM('pending', 'accepted', 'inProgress', 'completed', 'reviewedAndCompleted', 'requestedForRescheduleByUser','requestedForRescheduleByUser','requestedForRescheduleByTalent','canceledByUser','canceledByTalent'),
       defaultValue: 'pending'
     }
   }, {
