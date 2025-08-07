@@ -16,11 +16,13 @@ const levelRoutes = require('./routes/levelRoutes');
 const metaRoutes = require('./routes/metaRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const talentRoutes = require('./routes/talentRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 require('dotenv').config();
 
 app.use(express.json());
 app.use('/api', metaRoutes);
+app.use('/api/report', reportRoutes);
 app.use('/api/levels', levelRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/auth', authRoutes);
