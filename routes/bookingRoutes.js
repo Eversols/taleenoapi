@@ -5,5 +5,5 @@ const authenticate = require('../middleware/auth'); // assumes token middleware
 
 router.post('/create', authenticate, bookingController.createBooking);
 router.post('/', authenticate, bookingController.getBookings);
-
+router.post('/getBookingDetails', bookingController.getBookingDetails);
 module.exports = router;
