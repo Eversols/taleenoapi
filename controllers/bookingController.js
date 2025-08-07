@@ -234,3 +234,141 @@ exports.createBooking = async (req, res) => {
     );
   }
 };
+
+// Add this new controller function to your bookings controller file
+exports.getBookingDetails = async (req, res) => {
+  try {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      return res.status(400).json(
+        sendJson(false, 'Booking ID is required')
+      );
+    }
+
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+    // Use raw SQL query to fetch booking details
+    const results = await sequelize.query(`
+      SELECT 
+        b.id AS booking_id,
+        b.created_at,
+        b.time_slot,
+        b.status,
+        b.note,
+        b.skill_id,
+        
+        c.id AS client_id,
+        c.full_name AS client_full_name,
+        c.city AS client_city,
+        c.profile_photo AS client_profile_photo,
+        c.user_id AS client_user_id,
+
+        t.id AS talent_id,
+        t.full_name AS talent_full_name,
+        t.city AS talent_city,
+        t.profile_photo AS talent_profile_photo,
+        t.user_id AS talent_user_id,
+
+        s.id AS skill_id,
+        s.name AS skill_name
+
+      FROM bookings b
+      LEFT JOIN clients c ON b.client_id = c.id
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN skills s ON b.skill_id = s.id
+      WHERE b.id = :bookingId
+      LIMIT 1
+    `, {
+      replacements: { bookingId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!results || results.length === 0) {
+      return res.status(404).json(
+        sendJson(false, 'Booking not found')
+      );
+    }
+
+    const row = results[0];
+
+    // Format time
+    let time = "12:00 AM";
+    if (row.time_slot) {
+      try {
+        const [startTime] = row.time_slot.split(' - ');
+        if (startTime) {
+          const [hourStr = '0', minuteStr = '0'] = startTime.split(':');
+          const hour = parseInt(hourStr, 10);
+          const minute = parseInt(minuteStr, 10);
+          const timeDate = new Date();
+          timeDate.setHours(hour, minute, 0, 0);
+          time = timeDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+        }
+      } catch (e) {
+        console.error('Time formatting error:', e);
+      }
+    }
+
+    // Format date
+    let date = "";
+    try {
+      if (row.created_at) {
+        const createdDate = new Date(row.created_at);
+        if (!isNaN(createdDate.getTime())) {
+          date = createdDate.toISOString().split('T')[0];
+        }
+      }
+    } catch (e) {
+      console.error('Date formatting error:', e);
+    }
+
+    // Format location
+    const locationParts = [];
+    if (row.talent_city) locationParts.push(row.talent_city);
+    if (row.client_city) locationParts.push(row.client_city);
+    const location = locationParts.join(', ');
+
+    // Prepare profile photos
+    const clientProfilePhoto = row.client_profile_photo
+      ? row.client_profile_photo.startsWith('http')
+        ? row.client_profile_photo
+        : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`
+      : null;
+
+    const talentProfilePhoto = row.talent_profile_photo
+      ? row.talent_profile_photo.startsWith('http')
+        ? row.talent_profile_photo
+        : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
+      : null;
+
+    // Prepare response
+    const response = {
+      booking_id: row.booking_id,
+      date,
+      time,
+      location,
+      status: row.status || 'pending',
+      talent_name: row.talent_full_name || '',
+      client_name: row.client_full_name || '',
+      client_message: row.note || '',
+      client_profile_photo: clientProfilePhoto,
+      talent_profile_photo: talentProfilePhoto,
+      skill: row.skill_name || ''
+    };
+
+    return res.status(200).json(
+      sendJson(true, 'Booking details retrieved successfully', response)
+    );
+
+  } catch (error) {
+    console.error('Error fetching booking details:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch booking details', { error: error.message })
+    );
+  }
+};
