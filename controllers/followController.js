@@ -52,6 +52,7 @@ exports.getFollowing = async (req, res) => {
 
     return res.status(200).json(
       sendJson(true, 'Following list retrieved successfully', {
+        count: following.length,
         following: formattedFollowing
       })
     );
@@ -65,6 +66,71 @@ exports.getFollowing = async (req, res) => {
   }
 };
 
+exports.getFollowers = async (req, res) => {
+  try {
+    const { Skill, Talent } = require('../models');
+
+    // Fetch all skills to map IDs to names
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillMap = {};
+    allSkills.forEach(skill => {
+      skillMap[skill.id] = skill.name;
+    });
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json(sendJson(false, 'User not found'));
+    }
+
+    const followers = await Follow.findAll({
+      where: { followingId: req.user.id },  // Changed from followerId to followingId
+      include: [{
+        model: User,
+        as: 'follower',  // Changed from 'following' to 'follower'
+        attributes: ['id', 'username'],
+        include: [{
+          model: Talent,
+          as: 'talent',
+          attributes: ['profile_photo', 'skills']
+        }]
+      }],
+      attributes: ['id', 'createdAt']
+    });
+
+    const formattedFollowers = followers.map(f => {
+      const skillIds = f.follower?.talent?.skills || [];  // Changed from following to follower
+      const skillNames = Array.isArray(skillIds)
+        ? skillIds.map(id => skillMap[id]).filter(Boolean)
+        : [];
+
+      return {
+        id: f.id,
+        createdAt: f.createdAt,
+        user: {
+          id: f.follower?.id,  // Changed from following to follower
+          username: f.follower?.username,
+          profile_photo: f.follower?.talent?.profile_photo ?? null,
+          skills: skillNames
+        }
+      };
+    });
+
+    return res.status(200).json(
+      sendJson(true, 'Followers list retrieved successfully', {
+        followers: formattedFollowers  // Changed from following to followers
+      })
+    );
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve followers list', {  // Updated message
+        error: error.message
+      })
+    );
+  }
+};
+
+
 exports.follow = async (req, res) => {
   try {
     // Validate target user exists
@@ -76,13 +142,13 @@ exports.follow = async (req, res) => {
     }
 
     // Check if already following
-    const existing = await Follow.findOne({
-      where: {
-        followerId: req.user.id,
-        followingId: req.params.userId
+    const existing = await Follow.findOne({ 
+      where: { 
+        followerId: req.user.id, 
+        followingId: req.params.userId 
       }
     });
-
+    
     if (existing) {
       return res.status(400).json(
         sendJson(false, 'You are already following this user')
@@ -90,9 +156,9 @@ exports.follow = async (req, res) => {
     }
 
     // Create follow relationship
-    const follow = await Follow.create({
-      followerId: req.user.id,
-      followingId: req.params.userId
+    const follow = await Follow.create({ 
+      followerId: req.user.id, 
+      followingId: req.params.userId 
     });
 
     return res.status(201).json(
@@ -112,13 +178,13 @@ exports.follow = async (req, res) => {
 
 exports.unfollow = async (req, res) => {
   try {
-    const follow = await Follow.findOne({
-      where: {
-        followerId: req.user.id,
-        followingId: req.params.userId
+    const follow = await Follow.findOne({ 
+      where: { 
+        followerId: req.user.id, 
+        followingId: req.params.userId 
       }
     });
-
+    
     if (!follow) {
       return res.status(404).json(
         sendJson(false, 'You are not following this user')
