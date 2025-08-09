@@ -1,9 +1,10 @@
 const { Review, User, Booking } = require('../models');
+const { sendJson } = require('../utils/helpers');
 
 exports.createReview = async (req, res) => {
   try {
     const { reviewed_id, booking_id, rating, comment } = req.body;
-    const reviewer_id = req.user.id; // from auth middleware
+    const reviewer_id = req.user.id;
 
     const review = await Review.create({
       reviewer_id,
@@ -13,18 +14,26 @@ exports.createReview = async (req, res) => {
       comment
     });
 
-    return res.status(201).json({
-      success: true,
-      message: 'Review submitted successfully',
-      data: review
-    });
+    return res.status(201).json(
+      sendJson(true, 'Review submitted successfully', {
+        review: {
+          id: review.id,
+          reviewer_id: review.reviewer_id,
+          reviewed_id: review.reviewed_id,
+          booking_id: review.booking_id,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt
+        }
+      })
+    );
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to submit review',
-      error: error.message
-    });
+    return res.status(500).json(
+      sendJson(false, 'Failed to submit review', {
+        error: error.message
+      })
+    );
   }
 };
 
@@ -41,15 +50,24 @@ exports.getUserReviews = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    return res.json({
-      success: true,
-      data: reviews
-    });
+    return res.status(200).json(
+      sendJson(true, 'Reviews retrieved successfully', {
+        count: reviews.length,
+        reviews: reviews.map(review => ({
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt,
+          reviewer: review.reviewer,
+          booking: review.booking
+        }))
+      })
+    );
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch reviews',
-      error: error.message
-    });
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch reviews', {
+        error: error.message
+      })
+    );
   }
 };
