@@ -1,4 +1,4 @@
-const { Like, Share, Talent, User, sequelize } = require('../models');
+const { Like, Share, Talent, User, Wishlist,Skill,sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -214,6 +214,161 @@ exports.deleteTalent = async (req, res) => {
     console.error('Delete Talent Error:', error);
     return res.status(500).json(
       sendJson(false, 'Failed to delete talent', { 
+        error: error.message 
+      })
+    );
+  }
+};
+// Add to Wishlist
+exports.addToWishlist = async (req, res) => {
+  try {
+    const { talentId } = req.body;
+    const userId = req.user.id;
+
+    // Check if talent exists
+    const talent = await Talent.findByPk(talentId);
+    if (!talent) {
+      return res.status(404).json(sendJson(false, 'Talent not found'));
+    }
+
+    // Check if already in wishlist
+    const existingWishlist = await Wishlist.findOne({ 
+      where: { userId, talentId } 
+    });
+
+    if (existingWishlist) {
+      return res.status(400).json(sendJson(false, 'Talent already in wishlist'));
+    }
+
+    // Add to wishlist
+    const wishlistItem = await Wishlist.create({ userId, talentId });
+
+    return res.status(201).json(
+      sendJson(true, 'Talent added to wishlist successfully', { wishlistItem })
+    );
+  } catch (error) {
+    console.error('Add to Wishlist Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to add to wishlist', { 
+        error: error.message 
+      })
+    );
+  }
+};
+
+// Get Wishlist
+exports.getWishlist = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+    // const rows = await sequelize.query(`
+    //   SELECT 
+    //     w.id AS wishlist_id,
+    //     t.id AS talent_id,
+    //     t.skills as skills,
+    //     u.id AS user_id,
+    //     u.username,
+    //     t.profile_photo
+    //   FROM Wishlists w
+    //   INNER JOIN talents t ON t.id = w.talent_id
+    //   INNER JOIN users u ON u.id = t.user_id
+    //   WHERE w.user_id = :userId
+    //   GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
+    //   ORDER BY w.id DESC
+    // `, {
+    //   replacements: { userId },
+    //   type: sequelize.QueryTypes.SELECT
+    // });
+    const rows = await sequelize.query(`
+  SELECT 
+    w.id AS wishlist_id,
+    t.id AS talent_id,
+    u.id AS user_id,
+    u.username,
+    t.profile_photo,
+    JSON_ARRAYAGG(
+      JSON_OBJECT(
+        'id', s.id,
+        'name', s.name,
+        'rate', jt.rate
+      )
+    ) AS skills
+  FROM Wishlists w
+  INNER JOIN talents t ON t.id = w.talent_id
+  INNER JOIN users u ON u.id = t.user_id
+  JOIN JSON_TABLE(
+    t.skills, 
+    '$[*]' COLUMNS(
+      skill_id INT PATH '$.id',
+      rate VARCHAR(10) PATH '$.rate'
+    )
+  ) jt ON jt.skill_id IS NOT NULL
+  LEFT JOIN skills s ON s.id = jt.skill_id
+  WHERE w.user_id = :userId
+  GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
+  ORDER BY w.id DESC
+`, {
+  replacements: { userId },
+  type: sequelize.QueryTypes.SELECT
+});
+
+
+    const formattedWishlist = rows.map(row => ({
+      id: row.wishlist_id,
+      talent: {
+        id: row.talent_id,
+        userId: row.user_id,
+        username: row.username,
+        skills: row.skills,
+        profile_photo: row.profile_photo 
+          ? `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
+          : null,
+      }
+    }));
+
+    return res.status(200).json(
+      sendJson(true, 'Wishlist retrieved successfully', {
+        count: formattedWishlist.length,
+        wishlist: formattedWishlist
+      })
+    );
+  } catch (error) {
+    console.error('Get Wishlist Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve wishlist', { 
+        error: error.message 
+      })
+    );
+  }
+};
+
+
+
+
+// Remove from Wishlist
+exports.removeFromWishlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const wishlistItem = await Wishlist.findOne({ 
+      where: { id, userId } 
+    });
+
+    if (!wishlistItem) {
+      return res.status(404).json(sendJson(false, 'Wishlist item not found'));
+    }
+
+    await wishlistItem.destroy();
+
+    return res.status(200).json(
+      sendJson(true, 'Talent removed from wishlist successfully')
+    );
+  } catch (error) {
+    console.error('Remove from Wishlist Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to remove from wishlist', { 
         error: error.message 
       })
     );
