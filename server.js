@@ -22,6 +22,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 require('dotenv').config();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use('/api', metaRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/levels', levelRoutes);
