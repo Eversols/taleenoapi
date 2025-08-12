@@ -18,6 +18,7 @@ const bookingRoutes = require('./routes/bookingRoutes');
 const talentRoutes = require('./routes/talentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 require('dotenv').config();
 
@@ -40,6 +41,8 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/talent', talentRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Default test route

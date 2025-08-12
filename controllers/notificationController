@@ -1,0 +1,375 @@
+const { Notification, User, sequelize } = require('../models');
+const { sendJson } = require('../utils/helpers');
+const { Op } = require('sequelize');
+
+// Create Notification
+exports.createNotification = async (req, res) => {
+  try {
+    const { user_id, type, title, message, is_read, related_id, related_type } = req.body;
+
+    if (!user_id || !type || !title || !message) {
+      return res.status(400).json(
+        sendJson(false, 'user_id, type, title and message are required')
+      );
+    }
+
+    const [user] = await sequelize.query(`
+      SELECT id FROM users WHERE id = :user_id LIMIT 1
+    `, {
+      replacements: { user_id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!user) {
+      return res.status(404).json(
+        sendJson(false, 'User not found')
+      );
+    }
+
+    // For MySQL, we need to first insert then select
+    await sequelize.query(`
+      INSERT INTO notifications 
+        (user_id, type, title, message, is_read, related_id, related_type, created_at, updated_at)
+      VALUES 
+        (:user_id, :type, :title, :message, :is_read, :related_id, :related_type, NOW(), NOW())
+    `, {
+      replacements: {
+        user_id,
+        type,
+        title,
+        message,
+        is_read: is_read || false,
+        related_id: related_id || null,
+        related_type: related_type || null
+      }
+    });
+
+    // Get the inserted notification
+    const [notification] = await sequelize.query(`
+      SELECT * FROM notifications 
+      WHERE user_id = :user_id 
+      ORDER BY id DESC 
+      LIMIT 1
+    `, {
+      replacements: { user_id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    return res.status(201).json(
+      sendJson(true, 'Notification created successfully', {
+        notification
+      })
+    );
+
+  } catch (error) {
+    console.error('Create Notification Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to create notification', {
+        error: error.message
+      })
+    );
+  }
+};
+
+// Get All Notifications with Optional Type Filter
+exports.getNotifications = async (req, res) => {
+  try {
+    const { type, user_id } = req.query;
+
+    let whereClause = '';
+    const replacements = {};
+
+    if (type) {
+      whereClause += ' AND n.type = :type';
+      replacements.type = type;
+    }
+
+    if (user_id) {
+      whereClause += ' AND n.user_id = :user_id';
+      replacements.user_id = user_id;
+    }
+
+    const notifications = await sequelize.query(`
+      SELECT 
+        n.*,
+        u.id as "user.id",
+        u.username as "user.username",
+        u.email as "user.email"
+      FROM notifications n
+      JOIN users u ON n.user_id = u.id
+      WHERE 1=1 ${whereClause}
+      ORDER BY n.created_at DESC
+    `, {
+      replacements,
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    return res.json(
+      sendJson(true, 'Notifications fetched successfully', {
+        count: notifications.length,
+        notifications
+      })
+    );
+  } catch (error) {
+    console.error('Get Notifications Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch notifications', {
+        error: error.message
+      })
+    );
+  }
+};
+
+// Get Single Notification
+exports.getNotificationById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [notification] = await sequelize.query(`
+      SELECT 
+        n.*,
+        u.id as "user.id",
+        u.username as "user.username",
+        u.email as "user.email"
+      FROM notifications n
+      JOIN users u ON n.user_id = u.id
+      WHERE n.id = :id
+      LIMIT 1
+    `, {
+      replacements: { id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!notification) {
+      return res.status(404).json(
+        sendJson(false, 'Notification not found')
+      );
+    }
+
+    return res.json(
+      sendJson(true, 'Notification fetched successfully', {
+        notification
+      })
+    );
+  } catch (error) {
+    console.error('Get Notification Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch notification', {
+        error: error.message
+      })
+    );
+  }
+};
+
+// Update Notification
+exports.updateNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [notification] = await sequelize.query(`
+      SELECT * FROM notifications WHERE id = :id LIMIT 1
+    `, {
+      replacements: { id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!notification) {
+      return res.status(404).json(
+        sendJson(false, 'Notification not found')
+      );
+    }
+
+    const { type, title, message, is_read, related_id, related_type } = req.body;
+
+    const [updatedNotification] = await sequelize.query(`
+      UPDATE notifications 
+      SET 
+        type = COALESCE(:type, type),
+        title = COALESCE(:title, title),
+        message = COALESCE(:message, message),
+        is_read = COALESCE(:is_read, is_read),
+        related_id = COALESCE(:related_id, related_id),
+        related_type = COALESCE(:related_type, related_type),
+        updated_at = NOW()
+      WHERE id = :id
+      RETURNING *
+    `, {
+      replacements: {
+        id,
+        type: type || null,
+        title: title || null,
+        message: message || null,
+        is_read: is_read !== undefined ? is_read : null,
+        related_id: related_id || null,
+        related_type: related_type || null
+      },
+      type: sequelize.QueryTypes.UPDATE
+    });
+
+    return res.json(
+      sendJson(true, 'Notification updated successfully', {
+        notification: updatedNotification[0]
+      })
+    );
+  } catch (error) {
+    console.error('Update Notification Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to update notification', {
+        error: error.message
+      })
+    );
+  }
+};
+
+// Delete Notification
+exports.deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [notification] = await sequelize.query(`
+      SELECT * FROM notifications WHERE id = :id LIMIT 1
+    `, {
+      replacements: { id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!notification) {
+      return res.status(404).json(
+        sendJson(false, 'Notification not found')
+      );
+    }
+
+    await sequelize.query(`
+      DELETE FROM notifications WHERE id = :id
+    `, {
+      replacements: { id }
+    });
+
+    return res.json(
+      sendJson(true, 'Notification deleted successfully')
+    );
+  } catch (error) {
+    console.error('Delete Notification Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to delete notification', {
+        error: error.message
+      })
+    );
+  }
+};
+
+// Alternative version using transactions
+exports.markAsRead = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+
+    const [notification] = await sequelize.query(`
+      SELECT * FROM notifications WHERE id = :id LIMIT 1
+    `, {
+      replacements: { id },
+      type: sequelize.QueryTypes.SELECT,
+      transaction
+    });
+
+    if (!notification) {
+      await transaction.rollback();
+      return res.status(404).json(
+        sendJson(false, 'Notification not found')
+      );
+    }
+
+    await sequelize.query(`
+      UPDATE notifications 
+      SET is_read = true, updated_at = NOW()
+      WHERE id = :id
+    `, {
+      replacements: { id },
+      transaction
+    });
+
+    const [updatedNotification] = await sequelize.query(`
+      SELECT * FROM notifications WHERE id = :id LIMIT 1
+    `, {
+      replacements: { id },
+      type: sequelize.QueryTypes.SELECT,
+      transaction
+    });
+
+    await transaction.commit();
+
+    return res.json(
+      sendJson(true, 'Notification marked as read', {
+        notification: updatedNotification
+      })
+    );
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Mark as Read Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to mark notification as read', {
+        error: error.message
+      })
+    );
+  }
+};
+
+// Mark All Notifications as Read
+exports.markAllAsRead = async (req, res) => {
+  try {
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json(
+        sendJson(false, 'User ID is required')
+      );
+    }
+
+    // Verify user exists
+    const [user] = await sequelize.query(`
+      SELECT id FROM users WHERE id = :user_id LIMIT 1
+    `, {
+      replacements: { user_id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!user) {
+      return res.status(404).json(
+        sendJson(false, 'User not found')
+      );
+    }
+
+    // Update all unread notifications
+    await sequelize.query(`
+      UPDATE notifications 
+      SET is_read = true, updated_at = NOW()
+      WHERE user_id = :user_id AND is_read = false
+    `, {
+      replacements: { user_id }
+    });
+
+    // Get updated count
+    const [result] = await sequelize.query(`
+      SELECT COUNT(*) as updated_count 
+      FROM notifications 
+      WHERE user_id = :user_id AND is_read = true
+    `, {
+      replacements: { user_id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    return res.json(
+      sendJson(true, 'All notifications marked as read', {
+        updated_count: result.updated_count
+      })
+    );
+
+  } catch (error) {
+    console.error('Mark All as Read Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to mark notifications as read', {
+        error: error.message
+      })
+    );
+  }
+};
