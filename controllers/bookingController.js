@@ -510,3 +510,58 @@ exports.ByDateBookings = async (req, res) => {
     );
   }
 };
+exports.MyBookingsForTalent = async (req, res) => {
+  try {
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const talentId = req.user.id; // Assuming talent ID comes from auth middleware
+
+    const [results] = await sequelize.query(
+      `SELECT 
+        c.full_name AS client_name,
+        DATE(b.created_at) AS booking_date,
+        b.time_slot AS booking_time,
+        r.rating,
+        c.country AS client_country,
+        c.profile_photo AS client_profile_photo,
+        t.profile_photo AS talent_profile_photo
+      FROM bookings b
+      JOIN clients c ON b.client_id = c.id
+      LEFT JOIN reviews r ON r.booking_id = b.id AND r.deleted_at IS NULL
+      JOIN talents t ON b.talent_id = t.id
+      WHERE t.user_id = :talentId
+      ORDER BY b.created_at DESC`,
+      { replacements: { talentId } }
+    );
+
+    const bookings = results.map(row => ({
+      client_name: row.client_name || '',
+      booking_date: row.booking_date || '',
+      booking_time: row.booking_time || '',
+      rating: row.rating || null,
+      client_country: row.client_country || '',
+      client_profile_photo: row.client_profile_photo
+        ? row.client_profile_photo.startsWith('http')
+          ? row.client_profile_photo
+          : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`
+        : null,
+      talent_profile_photo: row.talent_profile_photo
+        ? row.talent_profile_photo.startsWith('http')
+          ? row.talent_profile_photo
+          : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
+        : null
+    }));
+
+    return res.status(200).json(
+      sendJson(true, 'Your bookings retrieved successfully', {
+        bookings
+      })
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch your bookings', {
+        error: error.message
+      })
+    );
+  }
+};
