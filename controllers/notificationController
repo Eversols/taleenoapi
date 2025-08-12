@@ -2,7 +2,7 @@ const { Notification, User, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
-// Create Notification
+// Create Notification (Admin only or system-generated)
 exports.createNotification = async (req, res) => {
   try {
     const { user_id, type, title, message, is_read, related_id, related_type } = req.body;
@@ -13,6 +13,7 @@ exports.createNotification = async (req, res) => {
       );
     }
 
+    // Verify user exists
     const [user] = await sequelize.query(`
       SELECT id FROM users WHERE id = :user_id LIMIT 1
     `, {
@@ -71,22 +72,25 @@ exports.createNotification = async (req, res) => {
   }
 };
 
-// Get All Notifications with Optional Type Filter
+// Get All Notifications for Current User
+// Get All Notifications with is_read filter
 exports.getNotifications = async (req, res) => {
   try {
-    const { type, user_id } = req.query;
+    const { type, is_read } = req.query;
+    const user_id = req.user.id; // From authenticated user
 
-    let whereClause = '';
-    const replacements = {};
+    let whereClause = 'AND n.user_id = :user_id';
+    const replacements = { user_id };
 
     if (type) {
       whereClause += ' AND n.type = :type';
       replacements.type = type;
     }
 
-    if (user_id) {
-      whereClause += ' AND n.user_id = :user_id';
-      replacements.user_id = user_id;
+    // Add filter for is_read if specified
+    if (is_read !== undefined) {
+      whereClause += ' AND n.is_read = :is_read';
+      replacements.is_read = is_read === 'true';
     }
 
     const notifications = await sequelize.query(`
@@ -120,10 +124,11 @@ exports.getNotifications = async (req, res) => {
   }
 };
 
-// Get Single Notification
+// Get Single Notification (Owned by current user)
 exports.getNotificationById = async (req, res) => {
   try {
     const { id } = req.params;
+    const user_id = req.user.id; // From authenticated user
 
     const [notification] = await sequelize.query(`
       SELECT 
@@ -133,16 +138,16 @@ exports.getNotificationById = async (req, res) => {
         u.email as "user.email"
       FROM notifications n
       JOIN users u ON n.user_id = u.id
-      WHERE n.id = :id
+      WHERE n.id = :id AND n.user_id = :user_id
       LIMIT 1
     `, {
-      replacements: { id },
+      replacements: { id, user_id },
       type: sequelize.QueryTypes.SELECT
     });
 
     if (!notification) {
       return res.status(404).json(
-        sendJson(false, 'Notification not found')
+        sendJson(false, 'Notification not found or not owned by user')
       );
     }
 
@@ -161,27 +166,35 @@ exports.getNotificationById = async (req, res) => {
   }
 };
 
-// Update Notification
+// Update Notification (Owned by current user)
 exports.updateNotification = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
+    const user_id = req.user.id; // From authenticated user
 
+    // First verify notification exists and belongs to user
     const [notification] = await sequelize.query(`
-      SELECT * FROM notifications WHERE id = :id LIMIT 1
+      SELECT * FROM notifications 
+      WHERE id = :id AND user_id = :user_id
+      LIMIT 1
     `, {
-      replacements: { id },
-      type: sequelize.QueryTypes.SELECT
+      replacements: { id, user_id },
+      type: sequelize.QueryTypes.SELECT,
+      transaction
     });
 
     if (!notification) {
+      await transaction.rollback();
       return res.status(404).json(
-        sendJson(false, 'Notification not found')
+        sendJson(false, 'Notification not found or not owned by user')
       );
     }
 
     const { type, title, message, is_read, related_id, related_type } = req.body;
 
-    const [updatedNotification] = await sequelize.query(`
+    // Perform the update
+    await sequelize.query(`
       UPDATE notifications 
       SET 
         type = COALESCE(:type, type),
@@ -191,11 +204,11 @@ exports.updateNotification = async (req, res) => {
         related_id = COALESCE(:related_id, related_id),
         related_type = COALESCE(:related_type, related_type),
         updated_at = NOW()
-      WHERE id = :id
-      RETURNING *
+      WHERE id = :id AND user_id = :user_id
     `, {
       replacements: {
         id,
+        user_id,
         type: type || null,
         title: title || null,
         message: message || null,
@@ -203,15 +216,27 @@ exports.updateNotification = async (req, res) => {
         related_id: related_id || null,
         related_type: related_type || null
       },
-      type: sequelize.QueryTypes.UPDATE
+      transaction
     });
+
+    // Get the updated notification
+    const [updatedNotification] = await sequelize.query(`
+      SELECT * FROM notifications WHERE id = :id LIMIT 1
+    `, {
+      replacements: { id },
+      type: sequelize.QueryTypes.SELECT,
+      transaction
+    });
+
+    await transaction.commit();
 
     return res.json(
       sendJson(true, 'Notification updated successfully', {
-        notification: updatedNotification[0]
+        notification: updatedNotification
       })
     );
   } catch (error) {
+    await transaction.rollback();
     console.error('Update Notification Error:', error);
     return res.status(500).json(
       sendJson(false, 'Failed to update notification', {
@@ -221,34 +246,46 @@ exports.updateNotification = async (req, res) => {
   }
 };
 
-// Delete Notification
+// Delete Notification (Owned by current user)
 exports.deleteNotification = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
+    const user_id = req.user.id; // From authenticated user
 
+    // First verify notification exists and belongs to user
     const [notification] = await sequelize.query(`
-      SELECT * FROM notifications WHERE id = :id LIMIT 1
+      SELECT * FROM notifications 
+      WHERE id = :id AND user_id = :user_id
+      LIMIT 1
     `, {
-      replacements: { id },
-      type: sequelize.QueryTypes.SELECT
+      replacements: { id, user_id },
+      type: sequelize.QueryTypes.SELECT,
+      transaction
     });
 
     if (!notification) {
+      await transaction.rollback();
       return res.status(404).json(
-        sendJson(false, 'Notification not found')
+        sendJson(false, 'Notification not found or not owned by user')
       );
     }
 
     await sequelize.query(`
-      DELETE FROM notifications WHERE id = :id
+      DELETE FROM notifications 
+      WHERE id = :id AND user_id = :user_id
     `, {
-      replacements: { id }
+      replacements: { id, user_id },
+      transaction
     });
+
+    await transaction.commit();
 
     return res.json(
       sendJson(true, 'Notification deleted successfully')
     );
   } catch (error) {
+    await transaction.rollback();
     console.error('Delete Notification Error:', error);
     return res.status(500).json(
       sendJson(false, 'Failed to delete notification', {
@@ -258,16 +295,20 @@ exports.deleteNotification = async (req, res) => {
   }
 };
 
-// Alternative version using transactions
+// Mark Single Notification as Read (Owned by current user)
 exports.markAsRead = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
+    const user_id = req.user.id; // From authenticated user
 
+    // First verify notification exists and belongs to user
     const [notification] = await sequelize.query(`
-      SELECT * FROM notifications WHERE id = :id LIMIT 1
+      SELECT * FROM notifications 
+      WHERE id = :id AND user_id = :user_id
+      LIMIT 1
     `, {
-      replacements: { id },
+      replacements: { id, user_id },
       type: sequelize.QueryTypes.SELECT,
       transaction
     });
@@ -275,19 +316,21 @@ exports.markAsRead = async (req, res) => {
     if (!notification) {
       await transaction.rollback();
       return res.status(404).json(
-        sendJson(false, 'Notification not found')
+        sendJson(false, 'Notification not found or not owned by user')
       );
     }
 
+    // Update the notification
     await sequelize.query(`
       UPDATE notifications 
       SET is_read = true, updated_at = NOW()
-      WHERE id = :id
+      WHERE id = :id AND user_id = :user_id
     `, {
-      replacements: { id },
+      replacements: { id, user_id },
       transaction
     });
 
+    // Get the updated notification
     const [updatedNotification] = await sequelize.query(`
       SELECT * FROM notifications WHERE id = :id LIMIT 1
     `, {
@@ -314,38 +357,20 @@ exports.markAsRead = async (req, res) => {
   }
 };
 
-// Mark All Notifications as Read
+// Mark All Notifications as Read for Current User
 exports.markAllAsRead = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const { user_id } = req.body;
+    const user_id = req.user.id; // From authenticated user
 
-    if (!user_id) {
-      return res.status(400).json(
-        sendJson(false, 'User ID is required')
-      );
-    }
-
-    // Verify user exists
-    const [user] = await sequelize.query(`
-      SELECT id FROM users WHERE id = :user_id LIMIT 1
-    `, {
-      replacements: { user_id },
-      type: sequelize.QueryTypes.SELECT
-    });
-
-    if (!user) {
-      return res.status(404).json(
-        sendJson(false, 'User not found')
-      );
-    }
-
-    // Update all unread notifications
+    // Update all unread notifications for this user
     await sequelize.query(`
       UPDATE notifications 
       SET is_read = true, updated_at = NOW()
       WHERE user_id = :user_id AND is_read = false
     `, {
-      replacements: { user_id }
+      replacements: { user_id },
+      transaction
     });
 
     // Get updated count
@@ -355,16 +380,19 @@ exports.markAllAsRead = async (req, res) => {
       WHERE user_id = :user_id AND is_read = true
     `, {
       replacements: { user_id },
-      type: sequelize.QueryTypes.SELECT
+      type: sequelize.QueryTypes.SELECT,
+      transaction
     });
+
+    await transaction.commit();
 
     return res.json(
       sendJson(true, 'All notifications marked as read', {
         updated_count: result.updated_count
       })
     );
-
   } catch (error) {
+    await transaction.rollback();
     console.error('Mark All as Read Error:', error);
     return res.status(500).json(
       sendJson(false, 'Failed to mark notifications as read', {
