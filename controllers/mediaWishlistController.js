@@ -15,6 +15,15 @@ exports.getAllWishlist = async (req, res) => {
       ]
     });
 
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+    // Add full URL to each media's fileUrl
+    wishlist.forEach(item => {
+      if (item.media && item.media.fileUrl) {
+        item.media.fileUrl = `${BASE_URL}/${item.media.fileUrl.replace(/^\//, '')}`;
+      }
+    });
+
     return res.status(200).json(
       sendJson(true, 'Wishlist retrieved successfully', {
         wishlist
@@ -28,6 +37,7 @@ exports.getAllWishlist = async (req, res) => {
     );
   }
 };
+
 
 exports.getWishlistById = async (req, res) => {
   try {
