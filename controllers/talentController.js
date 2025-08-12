@@ -129,52 +129,60 @@ exports.shareTalent = async (req, res) => {
 };
 
 // Get all talents with explicit JOIN
-exports.getAllTalents = async (req, res) => {
+exports.getUserDetails = async (req, res) => {
   try {
+    const authUser = req.user; // assuming authentication middleware sets this
+    if (!authUser) {
+      return res.status(401).json(sendJson(false, 'Unauthorized', {}));
+    }
+
+    // Fetch user with role-based details
+    const user = await User.findOne({
+      where: { id: authUser.id },
+      attributes: { exclude: ['password', 'verification_code', 'verification_code_expire'] },
+      include: [
+        {
+          association: 'talent',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        },
+        {
+          association: 'client',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json(sendJson(false, 'User not found'));
+    }
+
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
-    
-    // Using raw query with JOIN
-    const talents = await sequelize.query(`
-      SELECT 
-        t.*, 
-        u.id as "user_id", 
-        u.username, 
-        t.profile_photo,
-        (SELECT COUNT(*) FROM likes WHERE talent_id = t.id) as "likes_count",
-        (SELECT COUNT(*) FROM shares WHERE talent_id = t.id) as "shares_count"
-      FROM talents t
-      JOIN users u ON t.user_id = u.id
-      ORDER BY t.created_at DESC
-    `, {
-      type: sequelize.QueryTypes.SELECT
-    });
 
-    // Process the talents to include full URLs for profile photos
-    const talentsWithFullUrls = talents.map(talent => {
-      if (talent.profile_photo) {
-        return {
-          ...talent,
-          profile_photo: `${BASE_URL}/${talent.profile_photo.replace(/^\//, '')}`
-        };
-      }
-      return talent;
-    });
+    // Add full URL for profile photo if talent
+    if (user.role === 'talent' && user.talent?.profile_photo) {
+      user.talent.profile_photo = `${BASE_URL}/${user.talent.profile_photo.replace(/^\//, '')}`;
+    }
 
-    return res.json(
-      sendJson(true, 'Talents fetched successfully', {
-        count: talentsWithFullUrls.length,
-        talents: talentsWithFullUrls
-      })
-    );
+    const userData = {
+      id: user.id,
+      username: user.username,
+      phone_number: user.phone_number,
+      email: user.email,
+      role: user.role,
+      is_verified: user.is_verified,
+      on_board: user.on_board,
+      ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
+    };
+
+    return res.json(sendJson(true, 'User details fetched successfully', userData));
   } catch (error) {
-    console.error('Get All Talents Error:', error);
+    console.error('Get User Details Error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to fetch talents', { 
-        error: error.message 
-      })
+      sendJson(false, 'Failed to fetch user details', { error: error.message })
     );
   }
 };
+
 
 // Delete a talent
 exports.deleteTalent = async (req, res) => {
