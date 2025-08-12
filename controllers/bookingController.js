@@ -449,3 +449,64 @@ exports.updateBookingStatus = async (req, res) => {
     });
   }
 };
+exports.ByDateBookings = async (req, res) => {
+  try {
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const searchDate = req.query.date || null;
+
+    let whereClause = '';
+    if (searchDate) {
+      whereClause = `WHERE DATE(b.created_at) = :searchDate`;
+    }
+
+    const [results] = await sequelize.query(
+      `
+      SELECT 
+        t.full_name AS talent_name,
+        DATE(b.created_at) AS booking_date,
+        b.time_slot AS booking_time,
+        r.rating,
+        t.country AS talent_country,
+        t.profile_photo AS profile_photo
+      FROM bookings b
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN reviews r ON r.booking_id = b.id AND r.deleted_at IS NULL
+      ${whereClause}
+      ORDER BY b.created_at DESC
+      `,
+      {
+        replacements: { searchDate },
+      }
+    );
+
+    const simplifiedBookings = results.map(row => {
+      const profileImage = row.profile_photo
+        ? row.profile_photo.startsWith('http')
+          ? row.profile_photo
+          : `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
+        : null;
+
+      return {
+        talent_name: row.talent_name || '',
+        booking_date: row.booking_date || '',
+        booking_time: row.booking_time || '',
+        rating: row.rating || null,
+        talent_country: row.talent_country || '',
+        profile_photo: profileImage
+      };
+    });
+
+    return res.status(200).json(
+      sendJson(true, 'Bookings retrieved successfully', {
+        Bookings: simplifiedBookings
+      })
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch bookings', {
+        error: error.message
+      })
+    );
+  }
+};
