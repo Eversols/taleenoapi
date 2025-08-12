@@ -1,4 +1,4 @@
-const { Booking, Client, Talent, User, Skill } = require('../models');
+const { Booking, Client, Talent, User, Skill ,Review} = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
@@ -8,6 +8,7 @@ const BookingStatusEnum = [
   'accepted',
   'inProgress',
   'completed',
+  'reviewPending', // added for pending review state
   'reviewedAndCompleted',
   'requestedForRescheduleByUser',
   'requestedForRescheduleByTalent',
@@ -403,7 +404,6 @@ exports.updateBookingStatus = async (req, res) => {
     }
 
     const booking = await Booking.findByPk(booking_id);
-
     if (!booking) {
       return res.status(404).json({
         success: false,
@@ -411,7 +411,26 @@ exports.updateBookingStatus = async (req, res) => {
       });
     }
 
-    // Update status
+    // If trying to mark as completed or reviewedAndCompleted
+    if (status === 'completed' || status === 'reviewedAndCompleted') {
+      const review = await Review.findOne({
+        where: { booking_id: booking.id }
+      });
+
+      if (!review) {
+        // No review found, mark as review pending instead
+        booking.status = 'reviewPending';
+        await booking.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Review is still pending. Status set to reviewPending.',
+          updated_booking: booking
+        });
+      }
+    }
+
+    // Update status normally
     booking.status = status;
     await booking.save();
 
