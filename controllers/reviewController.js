@@ -6,6 +6,20 @@ exports.createReview = async (req, res) => {
     const { reviewed_id, booking_id, rating, comment } = req.body;
     const reviewer_id = req.user.id;
 
+    const booking = await Booking.findByPk(booking_id);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+    const existingReview = await Review.findOne({ where: { booking_id } });
+    if (existingReview) {
+      return res.status(400).json({
+        success: false,
+        message: 'Review already exists for this booking'
+      });
+    }
     const review = await Review.create({
       reviewer_id,
       reviewed_id,
@@ -13,7 +27,8 @@ exports.createReview = async (req, res) => {
       rating,
       comment
     });
-
+    booking.status = 'completed';
+    await booking.save();
     return res.status(201).json(
       sendJson(true, 'Review submitted successfully', {
         review: {
