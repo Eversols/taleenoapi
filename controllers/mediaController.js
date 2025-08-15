@@ -1,4 +1,4 @@
-const { Media, Skill } = require('../models');
+const { Media, Skill ,sequelize } = require('../models');
 const path = require('path');
 const { sendJson } = require('../utils/helpers');
 const fs = require('fs');
@@ -61,7 +61,18 @@ exports.list = async (req, res) => {
 
     const media = await Media.findAll({
       where: { userId: req.user.id },
-      attributes: ['id', 'title', 'description', 'fileUrl', 'type', 'visibility', 'likes', 'shares', 'createdAt'],
+      attributes: {
+        include: [
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*) 
+              FROM media_wishlist AS mw 
+              WHERE mw.media_id = Media.id
+            )`),
+            'wishlist_count'
+          ]
+        ]
+      },
       include: [
         {
           model: Skill,
@@ -91,6 +102,7 @@ exports.list = async (req, res) => {
     );
   }
 };
+
 
 exports.update = async (req, res) => {
   try {
