@@ -465,6 +465,7 @@ exports.ByDateBookings = async (req, res) => {
         t.full_name AS talent_name,
         DATE(b.created_at) AS booking_date,
         b.time_slot AS booking_time,
+        b.id AS booking_id,
         r.rating,
         t.country AS talent_country,
         t.profile_photo AS profile_photo
@@ -487,6 +488,7 @@ exports.ByDateBookings = async (req, res) => {
         : null;
 
       return {
+        booking_id: row.booking_id || '',
         talent_name: row.talent_name || '',
         booking_date: row.booking_date || '',
         booking_time: row.booking_time || '',
