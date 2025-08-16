@@ -205,3 +205,43 @@ exports.unfollow = async (req, res) => {
     );
   }
 };
+
+exports.removeFollower = async (req, res) => {
+  const { Skill, Talent } = require('../models');
+  try {
+    const { followerId } = req.body; // ID of the follower you want to remove
+    const { Follow, User } = require('../models');
+
+    // Ensure the logged-in user exists
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json(sendJson(false, 'User not found'));
+    }
+
+    // Find the follow relation
+    const followRelation = await Follow.findOne({
+      where: {
+        followerId,           // the one following me
+        followingId: req.user.id  // me
+      }
+    });
+
+    if (!followRelation) {
+      return res.status(404).json(sendJson(false, 'Follower relation not found'));
+    }
+
+    // Delete the relation
+    await followRelation.destroy();
+
+    return res.status(200).json(
+      sendJson(true, 'Follower removed successfully')
+    );
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to remove follower', {
+        error: error.message
+      })
+    );
+  }
+};

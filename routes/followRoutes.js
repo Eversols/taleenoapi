@@ -7,6 +7,9 @@ router.use(auth);
 router.get('/', followController.getFollowing);
 router.get('/getFollowers', followController.getFollowers);
 router.post('/:userId', followController.follow);
+// order matters!
+router.delete('/removeFollower', followController.removeFollower);
 router.delete('/:userId', followController.unfollow);
+
 
 module.exports = router;
