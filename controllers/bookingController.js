@@ -565,3 +565,119 @@ exports.MyBookingsForTalent = async (req, res) => {
     );
   }
 };
+// here slots start
+// ...............................
+// ...............................
+// ...............................
+// ...............................
+// ...............................
+exports.MyBookingSlotsForTalent = async (req, res) => {
+  try {
+    const talentId = req.user.id;
+
+    // Expect these in query or body: start_date, end_date
+    const { start_date, end_date } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json(
+        sendJson(false, 'Start date and end date are required')
+      );
+    }
+
+    const [results] = await sequelize.query(
+      `SELECT 
+        DATE(b.created_at) AS booking_date,
+        b.time_slot AS booking_time
+      FROM bookings b
+      JOIN talents t ON b.talent_id = t.id
+      WHERE t.user_id = :talentId
+        AND DATE(b.created_at) BETWEEN :startDate AND :endDate
+      ORDER BY b.created_at ASC`,
+      {
+        replacements: {
+          talentId,
+          startDate: start_date,
+          endDate: end_date
+        }
+      }
+    );
+
+    // Group by booking_date with only time in slots
+    const grouped = results.reduce((acc, row) => {
+      const date = row.booking_date;
+      if (!acc[date]) {
+        acc[date] = {
+          booking_date: date,
+          slots: []
+        };
+      }
+      acc[date].slots.push({
+        booking_time: row.booking_time
+      });
+      return acc;
+    }, {});
+
+    const bookings = Object.values(grouped);
+
+    return res.status(200).json(
+      sendJson(true, 'Date-wise booking slots retrieved', { bookings })
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch booking slots', { error: error.message })
+    );
+  }
+};
+exports.bookingsSlotshaveclient = async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json(
+        sendJson(false, 'Start date and end date are required')
+      );
+    }
+
+    const [results] = await sequelize.query(`
+      SELECT 
+        DATE(b.created_at) AS booking_date,
+        b.time_slot AS booking_time
+      FROM bookings b
+      LEFT JOIN talents t ON b.talent_id = t.id
+      WHERE DATE(b.created_at) BETWEEN :startDate AND :endDate
+      ORDER BY b.created_at ASC
+    `, {
+      replacements: {
+        startDate: start_date,
+        endDate: end_date
+      }
+    });
+
+    // Group by booking_date
+    const grouped = results.reduce((acc, row) => {
+      const date = row.booking_date;
+      if (!acc[date]) {
+        acc[date] = {
+          booking_date: date,
+          slots: []
+        };
+      }
+      acc[date].slots.push({
+        booking_time: row.booking_time
+      });
+      return acc;
+    }, {});
+
+    const bookings = Object.values(grouped);
+
+    return res.status(200).json(
+      sendJson(true, 'Date-wise slots retrieved successfully', { bookings })
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch date-wise slots', { error: error.message })
+    );
+  }
+};
