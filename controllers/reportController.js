@@ -14,7 +14,7 @@ exports.submitReport = async (req, res) => {
     }
 
     // Validate report type
-    const validTypes = ['spam', 'inappropriate', 'fake', 'other'];
+    const validTypes = ['Harassment', 'Spam', 'Inappropriate Language', 'Abuse', 'Other'];
     if (!validTypes.includes(report_type)) {
       return res.status(400).json(
         sendJson(false, `Invalid report type. Valid types are: ${validTypes.join(', ')}`)
