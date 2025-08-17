@@ -4,9 +4,11 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Report extends Model {
     static associate(models) {
-      // Define associations here
+      // A report is created by a user (reporter)
       Report.belongsTo(models.User, { foreignKey: 'reporter_id', as: 'reporter' });
-      Report.belongsTo(models.User, { foreignKey: 'reported_id', as: 'reported' });
+
+      // A report is linked to a booking (instead of user)
+      Report.belongsTo(models.Booking, { foreignKey: 'booking_id', as: 'booking' });
     }
   }
 
@@ -19,16 +21,16 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
-    reported_id: {
+    booking_id: {   // <-- renamed from reported_id
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'users',
+        model: 'bookings',
         key: 'id'
       }
     },
     report_type: {
-      type: DataTypes.ENUM('spam', 'inappropriate', 'fake', 'other'),
+      type: DataTypes.ENUM('Harassment', 'Spam', 'Inappropriate Language', 'Abuse', 'Other'),
       allowNull: false
     },
     description: {
