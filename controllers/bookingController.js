@@ -619,14 +619,25 @@ exports.MyBookingSlotsForTalent = async (req, res) => {
 };
 exports.bookingsSlotshaveclient = async (req, res) => {
   try {
+    const { bookingdates } = req.body; // expect array in body
+
+    if (!bookingdates || !Array.isArray(bookingdates) || bookingdates.length === 0) {
+      return res.status(400).json(
+        sendJson(false, 'bookingdates array is required')
+      );
+    }
+
     const [results] = await sequelize.query(`
       SELECT 
         DATE(b.created_at) AS booking_date,
         b.time_slot AS booking_time
       FROM bookings b
       LEFT JOIN talents t ON b.talent_id = t.id
+      WHERE DATE(b.created_at) IN (:bookingdates)
       ORDER BY b.created_at ASC
-    `);
+    `, {
+      replacements: { bookingdates }
+    });
 
     // Group by booking_date
     const grouped = results.reduce((acc, row) => {
@@ -646,12 +657,12 @@ exports.bookingsSlotshaveclient = async (req, res) => {
     const bookings = Object.values(grouped);
 
     return res.status(200).json(
-      sendJson(true, 'All bookings retrieved successfully', { bookings })
+      sendJson(true, 'Filtered bookings retrieved successfully', { bookings })
     );
 
   } catch (error) {
     return res.status(500).json(
-      sendJson(false, 'Failed to fetch bookings', { error: error.message })
+      sendJson(false, 'Failed to fetch filtered bookings', { error: error.message })
     );
   }
 };
