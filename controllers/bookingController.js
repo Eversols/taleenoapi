@@ -32,7 +32,12 @@ exports.getBookings = async (req, res) => {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const userId = req.user.id;
     const role = req.user.role;
+    const searchDate = req.query.date || null; // Only YYYY-MM-DD, valid MySQL date
 
+    let whereClause = '';
+    if (searchDate) {
+      whereClause = `AND DATE(b.created_at) = :searchDate`;
+    }
     let results = [];
 
     if (role === "talent") {
@@ -87,8 +92,9 @@ exports.getBookings = async (req, res) => {
           GROUP BY booking_id
         ) r ON r.booking_id = b.id
         WHERE t.user_id = :userId
+        ${whereClause}
         ORDER BY b.created_at DESC
-      `, { replacements: { userId } });
+      `, { replacements: { userId, searchDate } });
 
     } else if (role === "client") {
       [results] = await sequelize.query(`
@@ -142,8 +148,9 @@ exports.getBookings = async (req, res) => {
           GROUP BY booking_id
         ) r ON r.booking_id = b.id
         WHERE c.user_id = :userId
+        ${whereClause}
         ORDER BY b.created_at DESC
-      `, { replacements: { userId } });
+      `, { replacements: { userId, searchDate } });
 
     } else {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
