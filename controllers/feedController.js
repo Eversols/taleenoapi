@@ -1,5 +1,6 @@
 const { User, Skill } = require('../models');
 const { sendJson } = require('../utils/helpers');
+const { Op } = require('sequelize');
 exports.getFeed = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL;
@@ -12,9 +13,9 @@ exports.getFeed = async (req, res) => {
     const talentWhere = {};
     if (talent_type) talentWhere.main_talent = talent_type;
     if (location) {
-      const [city, country] = location.split(',').map(l => l.trim());
-      if (city) talentWhere.city = city;
-      if (country) talentWhere.country = country;
+        const [cityPart, countryPart] = location.split(',').map(l => l.trim());
+        if (cityPart) talentWhere.city = { [Op.like]: `%${cityPart}%` };
+        if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
     }
 
     const users = await User.findAll({
