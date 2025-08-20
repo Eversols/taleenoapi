@@ -335,22 +335,32 @@ exports.getBookingDetails = async (req, res) => {
         c.id AS client_id,
         c.full_name AS client_full_name,
         c.city AS client_city,
+        cc.name AS client_city_name,
+        ctryc.name AS client_country_name,
         c.profile_photo AS client_profile_photo,
         c.user_id AS client_user_id,
 
         t.id AS talent_id,
         t.full_name AS talent_full_name,
         t.city AS talent_city,
+        tcc.name AS talent_city_name,
+        tctry.name AS talent_country_name,
         t.profile_photo AS talent_profile_photo,
         t.user_id AS talent_user_id,
 
         s.id AS skill_id,
-        s.name AS skill_name
-
+        s.name AS skill_name,
+        rv.id AS review_id
       FROM bookings b
       LEFT JOIN clients c ON b.client_id = c.id
       LEFT JOIN talents t ON b.talent_id = t.id
       LEFT JOIN skills s ON b.skill_id = s.id
+      LEFT JOIN reviews rv ON b.id = rv.booking_id
+      LEFT JOIN cities cc ON c.city = cc.id
+      LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
+      LEFT JOIN cities tcc ON t.city = tcc.id
+      LEFT JOIN countries tctry ON tcc.country_id = tctry.id
+      
       WHERE b.id = :bookingId
       LIMIT 1
     `, {
@@ -403,9 +413,13 @@ exports.getBookingDetails = async (req, res) => {
 
     // Format location
     const locationParts = [];
-    if (row.talent_city) locationParts.push(row.talent_city);
-    if (row.client_city) locationParts.push(row.client_city);
-    const location = locationParts.join(', ');
+    if (row.talent_city_name && row.talent_country_name) {
+      locationParts.push(`${row.talent_city_name}, ${row.talent_country_name}`);
+    }
+    if (row.client_city_name && row.client_country_name) {
+      locationParts.push(`${row.client_city_name}, ${row.client_country_name}`);
+    }
+    const location = locationParts.join(' | ');
 
     // Prepare profile photos
     const clientProfilePhoto = row.client_profile_photo
@@ -432,7 +446,8 @@ exports.getBookingDetails = async (req, res) => {
       client_message: row.note || '',
       client_profile_photo: clientProfilePhoto,
       talent_profile_photo: talentProfilePhoto,
-      skill: row.skill_name || ''
+      skill: row.skill_name || '',
+      review_id: row.review_id || '',
     };
 
     return res.status(200).json(
