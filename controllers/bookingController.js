@@ -30,49 +30,122 @@ function parseAvailability(value) {
 exports.getBookings = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const userId = req.user.id;
+    const role = req.user.role;
 
-    const [results] = await sequelize.query(`
-      SELECT 
-        b.id AS booking_id,
-        b.created_at,
-        b.time_slot,
-        b.status,
-        b.note,
-        
-        c.id AS client_id,
-        c.full_name AS client_full_name,
-        c.profile_photo AS profile_photo,
-        c.gender AS client_gender,
-        c.country AS client_country,
-        c.city AS client_city,
+    let results = [];
 
-        uc.id AS client_user_id,
-        uc.username AS client_username,
-        uc.email AS client_email,
-        uc.phone_number AS client_phone_number,
+    if (role === "talent") {
+      [results] = await sequelize.query(`
+        SELECT 
+          b.id AS booking_id,
+          b.created_at,
+          b.time_slot,
+          b.status,
+          b.note,
+          
+          c.id AS client_id,
+          c.full_name AS client_full_name,
+          c.profile_photo AS profile_photo,
+          c.gender AS client_gender,
+          c.country AS client_country,
+          ct.name AS client_city,
 
-        t.id AS talent_id,
-        t.full_name AS talent_full_name,
-        t.hourly_rate AS talent_hourly_rate,
-        t.city AS talent_city,
-        t.availability AS availability,
+          uc.id AS client_user_id,
+          uc.username AS client_username,
+          uc.email AS client_email,
+          uc.phone_number AS client_phone_number,
 
-        ut.id AS talent_user_id,
-        ut.username AS talent_username,
-        ut.email AS talent_email,
-        ut.phone_number AS talent_phone_number,
+          t.id AS talent_id,
+          t.full_name AS talent_full_name,
+          t.hourly_rate AS talent_hourly_rate,
+          ct.name AS talent_city,
+          t.availability AS availability,
 
-        s.id AS skill_id,
-        s.name AS skill_name
+          ut.id AS talent_user_id,
+          ut.username AS talent_username,
+          ut.email AS talent_email,
+          ut.phone_number AS talent_phone_number,
 
-      FROM bookings b
-      LEFT JOIN clients c ON b.client_id = c.id
-      LEFT JOIN users uc ON c.user_id = uc.id
-      LEFT JOIN talents t ON b.talent_id = t.id
-      LEFT JOIN users ut ON t.user_id = ut.id
-      LEFT JOIN skills s ON b.skill_id = s.id
-      ORDER BY b.created_at DESC
-    `);
+          s.id AS skill_id,
+          s.name AS skill_name,
+
+          r.rating AS rating
+
+        FROM bookings b
+        LEFT JOIN clients c ON b.client_id = c.id
+        LEFT JOIN users uc ON c.user_id = uc.id
+        LEFT JOIN talents t ON b.talent_id = t.id
+        LEFT JOIN users ut ON t.user_id = ut.id
+        LEFT JOIN skills s ON b.skill_id = s.id
+        LEFT JOIN cities ct ON t.city = ct.id
+        LEFT JOIN (
+          SELECT booking_id, MAX(rating) AS rating
+          FROM reviews
+          WHERE deleted_at IS NULL
+          GROUP BY booking_id
+        ) r ON r.booking_id = b.id
+        WHERE t.user_id = :userId
+        ORDER BY b.created_at DESC
+      `, { replacements: { userId } });
+
+    } else if (role === "client") {
+      [results] = await sequelize.query(`
+        SELECT 
+          b.id AS booking_id,
+          b.created_at,
+          b.time_slot,
+          b.status,
+          b.note,
+          
+          c.id AS client_id,
+          c.full_name AS client_full_name,
+          c.profile_photo AS profile_photo,
+          c.gender AS client_gender,
+          c.country AS client_country,
+          ct.name AS client_city,
+
+          uc.id AS client_user_id,
+          uc.username AS client_username,
+          uc.email AS client_email,
+          uc.phone_number AS client_phone_number,
+
+          t.id AS talent_id,
+          t.full_name AS talent_full_name,
+          t.hourly_rate AS talent_hourly_rate,
+          ct.name AS talent_city,
+          t.availability AS availability,
+
+          ut.id AS talent_user_id,
+          ut.username AS talent_username,
+          ut.email AS talent_email,
+          ut.phone_number AS talent_phone_number,
+
+          s.id AS skill_id,
+          s.name AS skill_name,
+
+          r.rating AS rating
+
+        FROM bookings b
+        LEFT JOIN clients c ON b.client_id = c.id
+        LEFT JOIN users uc ON c.user_id = uc.id
+        LEFT JOIN talents t ON b.talent_id = t.id
+        LEFT JOIN users ut ON t.user_id = ut.id
+        LEFT JOIN skills s ON b.skill_id = s.id
+        LEFT JOIN cities ct ON t.city = ct.id
+        LEFT JOIN (
+          SELECT booking_id, MAX(rating) AS rating
+          FROM reviews
+          WHERE deleted_at IS NULL
+          GROUP BY booking_id
+        ) r ON r.booking_id = b.id
+        WHERE c.user_id = :userId
+        ORDER BY b.created_at DESC
+      `, { replacements: { userId } });
+
+    } else {
+      return res.status(403).json(sendJson(false, 'Invalid role.'));
+    }
 
     let totalHour = 0;
     let totalRate = 0;
@@ -118,7 +191,7 @@ exports.getBookings = async (req, res) => {
           : `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
         : null;
 
-      const locationParts = [row.talent_city, row.client_city].filter(Boolean);
+      const locationParts = [row.client_country, row.client_city].filter(Boolean);
       const location = locationParts.join(', ');
 
       return {
@@ -126,14 +199,15 @@ exports.getBookings = async (req, res) => {
         booking_id: row.booking_id || '',
         mainTalent: row.talent_full_name || '',
         location,
-        date: parseAvailability(row.availability),
         time,
         dates,
         day,
         status: row.status || 'pending',
-        description: row.note || ''
+        description: row.note || '',
+        rating: row.rating || null
       };
     });
+
     return res.status(200).json(
       sendJson(true, 'Bookings retrieved successfully', {
         totalTask: Bookings.length,
@@ -144,16 +218,20 @@ exports.getBookings = async (req, res) => {
     );
 
   } catch (error) {
-
     return res.status(500).json(
-      sendJson(true, 'Failed to fetch bookings', {
-        totalTask: Bookings.length,
+      sendJson(false, 'Failed to fetch bookings', {
         error: error.message
       })
     );
   }
 };
 
+// ....................................
+// ....................................
+// ....................................
+// ....................................
+// ....................................
+// ....................................
 
 
 exports.createBooking = async (req, res) => {
