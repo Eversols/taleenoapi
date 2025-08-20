@@ -46,10 +46,10 @@ exports.getBookings = async (req, res) => {
           
           c.id AS client_id,
           c.full_name AS client_full_name,
-          c.profile_photo AS profile_photo,
+          c.profile_photo AS client_profile_photo,
           c.gender AS client_gender,
           c.country AS client_country,
-          ct.name AS client_city,
+          cc.name AS client_city,
 
           uc.id AS client_user_id,
           uc.username AS client_username,
@@ -59,7 +59,7 @@ exports.getBookings = async (req, res) => {
           t.id AS talent_id,
           t.full_name AS talent_full_name,
           t.hourly_rate AS talent_hourly_rate,
-          ct.name AS talent_city,
+          tc.name AS talent_city,
           t.availability AS availability,
 
           ut.id AS talent_user_id,
@@ -78,7 +78,8 @@ exports.getBookings = async (req, res) => {
         LEFT JOIN talents t ON b.talent_id = t.id
         LEFT JOIN users ut ON t.user_id = ut.id
         LEFT JOIN skills s ON b.skill_id = s.id
-        LEFT JOIN cities ct ON t.city = ct.id
+        LEFT JOIN cities cc ON c.city = cc.id
+        LEFT JOIN cities tc ON t.city = tc.id
         LEFT JOIN (
           SELECT booking_id, MAX(rating) AS rating
           FROM reviews
@@ -100,10 +101,10 @@ exports.getBookings = async (req, res) => {
           
           c.id AS client_id,
           c.full_name AS client_full_name,
-          c.profile_photo AS profile_photo,
+          t.profile_photo AS client_profile_photo,
           c.gender AS client_gender,
           c.country AS client_country,
-          ct.name AS client_city,
+          cc.name AS client_city,
 
           uc.id AS client_user_id,
           uc.username AS client_username,
@@ -113,7 +114,7 @@ exports.getBookings = async (req, res) => {
           t.id AS talent_id,
           t.full_name AS talent_full_name,
           t.hourly_rate AS talent_hourly_rate,
-          ct.name AS talent_city,
+          tc.name AS talent_city,
           t.availability AS availability,
 
           ut.id AS talent_user_id,
@@ -132,7 +133,8 @@ exports.getBookings = async (req, res) => {
         LEFT JOIN talents t ON b.talent_id = t.id
         LEFT JOIN users ut ON t.user_id = ut.id
         LEFT JOIN skills s ON b.skill_id = s.id
-        LEFT JOIN cities ct ON t.city = ct.id
+        LEFT JOIN cities cc ON c.city = cc.id
+        LEFT JOIN cities tc ON t.city = tc.id
         LEFT JOIN (
           SELECT booking_id, MAX(rating) AS rating
           FROM reviews
@@ -155,56 +157,38 @@ exports.getBookings = async (req, res) => {
       totalHour += 1;
       totalRate += rate;
 
-      let time = "12:00 AM";
-      let dates = "1970-01-01";
-      let day = "Monday";
-
-      try {
-        const createdDate = new Date(row.created_at);
-        if (!isNaN(createdDate.getTime())) {
-          dates = createdDate.toISOString().split('T')[0];
-          day = createdDate.toLocaleDateString('en-US', { weekday: 'long' });
-        }
-
-        if (typeof row.time_slot === 'string') {
-          const [startTime] = row.time_slot.split(' - ');
-          if (startTime) {
-            const [hourStr = '0', minuteStr = '0'] = startTime.split(':');
-            const hour = parseInt(hourStr, 10);
-            const minute = parseInt(minuteStr, 10);
-            const timeDate = new Date();
-            timeDate.setHours(hour, minute, 0, 0);
-            time = timeDate.toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true
-            });
-          }
-        }
-      } catch (e) {
-        console.error('Formatting error:', e);
-      }
-
-      const profileImage = row.profile_photo
-        ? row.profile_photo.startsWith('http')
-          ? row.profile_photo
-          : `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
+      const booking_date = row.created_at
+        ? new Date(row.created_at).toISOString().split('T')[0]
         : null;
 
-      const locationParts = [row.client_country, row.client_city].filter(Boolean);
-      const location = locationParts.join(', ');
-
       return {
-        profileImage,
-        booking_id: row.booking_id || '',
-        mainTalent: row.talent_full_name || '',
-        location,
-        time,
-        dates,
-        day,
+        booking_id: row.booking_id,
+        booking_date,
+        booking_time: row.time_slot || '',
         status: row.status || 'pending',
         description: row.note || '',
-        rating: row.rating || null
+        rating: row.rating || null,
+
+        ...(role === "talent"
+          ? {
+              // Show Client details if Talent logged in
+              client_name: row.client_full_name || '',
+              client_country: row.client_country || '',
+              client_profile_photo: row.client_profile_photo
+                ? (row.client_profile_photo.startsWith('http')
+                    ? row.client_profile_photo
+                    : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
+                : null,
+            }
+          : {
+              // Show Talent details if Client logged in
+              talent_name: row.talent_full_name || '',
+              talent_profile_photo: row.client_profile_photo
+                ? (row.client_profile_photo.startsWith('http')
+                    ? row.client_profile_photo
+                    : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
+                : null,
+            })
       };
     });
 
@@ -225,6 +209,7 @@ exports.getBookings = async (req, res) => {
     );
   }
 };
+
 
 // ....................................
 // ....................................
