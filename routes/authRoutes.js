@@ -15,6 +15,7 @@ router.post('/resendOTP', authController.resendOTP);
 // Protected routes (require valid token)
 router.post('/updateProfile', authMiddleware,upload.single('profile_photo'), authController.updateProfile);
 router.post('/updateTalentDetails', authMiddleware, authController.updateTalentDetails);
+router.post('/Setnotificationalert', authMiddleware, authController.Setnotificationalert);
 router.get('/me', authMiddleware, authController.getMe);
 
 module.exports = router;
