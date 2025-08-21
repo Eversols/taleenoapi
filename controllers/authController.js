@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client ,sequelize} = require('../models');
+const { User, Talent, Client, Follow ,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 
 exports.register = async (req, res) => {
@@ -115,9 +115,7 @@ exports.verifyOTP = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json(
-        sendJson(false, 'Invalid or expired OTP')
-      );
+      return res.status(400).json(sendJson(false, 'Invalid or expired OTP'));
     }
 
     // Mark user as verified
@@ -127,6 +125,12 @@ exports.verifyOTP = async (req, res) => {
       verification_code_expire: null
     });
 
+    // Count followers & followings
+    const [followersCount, followingsCount] = await Promise.all([
+      Follow.count({ where: { followingId: user.id } }), // People following me
+      Follow.count({ where: { followerId: user.id } })   // People I follow
+    ]);
+
     // Generate JWT token
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE
@@ -134,15 +138,18 @@ exports.verifyOTP = async (req, res) => {
 
     // Prepare user data based on role
     const userData = {
-    token,
-    id: user.id,
-    username: user.username,
-    phone_number: user.phone_number,
-    email: user.email,
-    role: user.role,
-    is_verified: user.is_verified,
-    on_board: user.on_board,
-    ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
+      token,
+      id: user.id,
+      username: user.username,
+      phone_number: user.phone_number,
+      email: user.email,
+      role: user.role,
+      is_verified: user.is_verified,
+      on_board: user.on_board,
+      notification_alert: user.notification_alert,
+      followers: followersCount,
+      followings: followingsCount,
+      ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
     };
 
     return res.status(201).json(
