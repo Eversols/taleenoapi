@@ -331,6 +331,7 @@ exports.getBookingDetails = async (req, res) => {
     }
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const role = req.user.role; // ✅ Use logged in user role
 
     // Use raw SQL query to fetch booking details
     const results = await sequelize.query(`
@@ -444,21 +445,39 @@ exports.getBookingDetails = async (req, res) => {
         : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
       : null;
 
-    // Prepare response
-    const response = {
-      booking_id: row.booking_id,
-      date,
-      time,
-      location,
-      status: row.status || 'pending',
-      talent_name: row.talent_full_name || '',
-      client_name: row.client_full_name || '',
-      client_message: row.note || '',
-      client_profile_photo: clientProfilePhoto,
-      talent_profile_photo: talentProfilePhoto,
-      skill: row.skill_name || '',
-      review_id: row.review_id || '',
-    };
+    // ✅ Role based response formatting
+    let response;
+    if (role === "talent") {
+      // Show client details if logged in as Talent
+      response = {
+        booking_id: row.booking_id,
+        date,
+        time,
+        location,
+        status: row.status || 'pending',
+        username: row.client_full_name || '',
+        profilePhoto: clientProfilePhoto,
+        description: row.note || '',
+        skill: row.skill_name || '',
+        review_id: row.review_id || ''
+      };
+    } else if (role === "client") {
+      // Show talent details if logged in as Client
+      response = {
+        booking_id: row.booking_id,
+        date,
+        time,
+        location,
+        status: row.status || 'pending',
+        username: row.talent_full_name || '',
+        profilePhoto: talentProfilePhoto,
+        description: row.note || '',
+        skill: row.skill_name || '',
+        review_id: row.review_id || ''
+      };
+    } else {
+      return res.status(403).json(sendJson(false, 'Invalid role.'));
+    }
 
     return res.status(200).json(
       sendJson(true, 'Booking details retrieved successfully', response)
