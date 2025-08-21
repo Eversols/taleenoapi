@@ -175,6 +175,7 @@ exports.getBookings = async (req, res) => {
         status: row.status || 'pending',
         description: row.note || '',
         rating: row.rating || null,
+        skill_name: row.skill_name || '',   // ✅ keep skill name here
 
         ...(role === "talent"
           ? {
@@ -205,7 +206,7 @@ exports.getBookings = async (req, res) => {
       totalHour,
       rating: Bookings.length > 0 ? (Bookings[0].rating || 0) : 0,
       booking: Bookings.map(b => ({
-        username: role === "talent" ? b.client_name : b.talent_name,
+        skillname: b.skill_name,
         location: role === "talent" ? b.client_country : '',
         status: b.status,
         time: b.booking_time,
