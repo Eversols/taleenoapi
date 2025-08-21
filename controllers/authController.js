@@ -448,3 +448,46 @@ exports.updateTalentDetails = async (req, res) => {
     );
   }
 };
+exports.Setnotificationalert = async (req, res) => {
+  try {
+    // Fetch user by ID
+    let user = await User.findByPk(req.user.id);
+
+    if (!user) {
+      return res.status(404).json(
+      sendJson(false, 'Talent profile not found',)
+    );
+    }
+
+    // Toggle notification_alert
+    const newAlertValue = user.notification_alert == '1' ? 0 : 1;
+    await user.update({ notification_alert: newAlertValue });
+
+    // Fetch updated user with full details and relations
+    const updatedUser = await User.findOne({
+      where: { id: user.id },
+      include: [
+        {
+          model: Client,  // adjust according to your associations
+          as: "client"
+        },
+        {
+          model: Talent, // adjust according to your associations
+          as: "talent"
+        }
+      ]
+    });
+
+     return res.status(200).json(
+      sendJson(true, 'Talent details updated successfully', {
+         data: updatedUser
+      })
+    );
+
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to update talent details',)
+    );
+  }
+};
