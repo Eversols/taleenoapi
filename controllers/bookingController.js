@@ -200,7 +200,7 @@ exports.getBookings = async (req, res) => {
     });
 
     // ✅ NEW: Transform to your requested format
-    const finalResponse = {
+    const bookings = {
       totaltask: Bookings.length,
       totalHour,
       rating: Bookings.length > 0 ? (Bookings[0].rating || 0) : 0,
@@ -219,7 +219,7 @@ exports.getBookings = async (req, res) => {
     };
 
     return res.status(200).json(
-      sendJson(true, 'Bookings retrieved successfully', {finalResponse})
+      sendJson(true, 'Bookings retrieved successfully', bookings)
     );
 
   } catch (error) {
