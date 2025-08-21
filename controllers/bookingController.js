@@ -218,7 +218,9 @@ exports.getBookings = async (req, res) => {
       }))
     };
 
-    return res.status(200).json(finalResponse);
+    return res.status(200).json(
+      sendJson(true, 'Bookings retrieved successfully', {finalResponse})
+    );
 
   } catch (error) {
     return res.status(500).json(
