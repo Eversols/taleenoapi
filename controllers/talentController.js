@@ -5,17 +5,23 @@ const { Op } = require('sequelize');
 // Like a talent
 exports.likeTalent = async (req, res) => {
   try {
-    const { talent_id } = req.body;
+    console.log("==== Incoming Request ====");
+    console.log("Raw Body:", req.body);
+    console.log("User Object:", req.user);
 
-    if (!talent_id) {
+    const { talent_id, type } = req.body; // type = "like" | "unlike"
+    console.log("Parsed talent_id:", talent_id, "type:", type);
+
+    if (!talent_id || !["like", "unlike"].includes(type)) {
+      console.log("❌ Invalid input, exiting early");
       return res.status(400).json(
-        sendJson(false, 'Talent ID is required')
+        sendJson(false, 'Talent ID and valid type ("like" or "unlike") are required')
       );
     }
 
-    // Using raw query with JOIN instead of include
+    // Fetch talent with user info
     const [talent] = await sequelize.query(`
-      SELECT t.*, u.id as "user.id", u.username as "user.username"
+      SELECT t.id, u.username
       FROM talents t
       JOIN users u ON t.user_id = u.id
       WHERE t.id = :talent_id
@@ -25,52 +31,86 @@ exports.likeTalent = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
+    console.log("Fetched Talent:", talent);
+
     if (!talent) {
-      return res.status(404).json(
-        sendJson(false, 'Talent not found')
-      );
+      console.log("❌ Talent not found");
+      return res.status(404).json(sendJson(false, 'Talent not found'));
     }
 
-    const existingLike = await Like.findOne({
-      where: { 
-        user_id: req.user.id, 
-        talent_id 
-      }
+    // Check if reaction exists
+    const [existingReaction] = await sequelize.query(`
+      SELECT id, type 
+      FROM likes 
+      WHERE user_id = :user_id AND talent_id = :talent_id
+      LIMIT 1
+    `, {
+      replacements: { user_id: req.user?.id, talent_id },
+      type: sequelize.QueryTypes.SELECT
     });
 
-    if (existingLike) {
-      await existingLike.destroy();
-      const likes_count = await Like.count({ where: { talent_id } });
-      
-      return res.status(200).json(
-        sendJson(true, 'Talent unliked successfully', {
-          talent: {
-            id: talent.id,
-            username: talent.user.username,
-            likes_count
-          }
-        })
-      );
+    console.log("Existing Reaction:", existingReaction);
+
+    if (existingReaction) {
+      if (existingReaction.type === type) {
+        console.log("🗑 Removing same reaction (toggle off)");
+        await sequelize.query(`
+          DELETE FROM likes
+          WHERE id = :id
+        `, {
+          replacements: { id: existingReaction.id }
+        });
+      } else {
+        console.log("✏ Updating reaction to new type:", type);
+        await sequelize.query(`
+          UPDATE likes 
+          SET type = :type, updated_at = NOW()
+          WHERE id = :id
+        `, {
+          replacements: { type, id: existingReaction.id }
+        });
+      }
+    } else {
+      console.log("➕ Inserting new reaction");
+      await sequelize.query(`
+        INSERT INTO likes (user_id, talent_id, type, created_at, updated_at)
+        VALUES (:user_id, :talent_id, :type, NOW(), NOW())
+      `, {
+        replacements: { user_id: req.user?.id, talent_id, type }
+      });
     }
 
-    await Like.create({ user_id: req.user.id, talent_id });
-    const likes_count = await Like.count({ where: { talent_id } });
+    // Get counts
+    const [counts] = await sequelize.query(`
+      SELECT 
+        SUM(CASE WHEN l.type = 'like' THEN 1 ELSE 0 END) as likes_count,
+        SUM(CASE WHEN l.type = 'unlike' THEN 1 ELSE 0 END) as unlikes_count
+      FROM likes l
+      WHERE l.talent_id = :talent_id
+    `, {
+      replacements: { talent_id },
+      type: sequelize.QueryTypes.SELECT
+    });
 
-    return res.status(201).json(
-      sendJson(true, 'Talent liked successfully', {
+    console.log("Counts:", counts);
+
+    return res.status(200).json(
+      sendJson(true, 'Reaction updated successfully', {
         talent: {
           id: talent.id,
-          username: talent.user.username,
-          likes_count
+          username: talent.username,
+          likes_count: counts.likes_count || 0,
+          unlikes_count: counts.unlikes_count || 0
         }
       })
     );
 
   } catch (error) {
-    console.error('Like Error:', error);
+    console.error('❌ Reaction Error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to process like', {
-        error: error.message
+      sendJson(false, 'Failed to process reaction', {
+        error: error.message,
+        stack: error.stack
       })
     );
   }
