@@ -14,5 +14,6 @@ router.post('/share', talentController.shareTalent); // Fixed: talentController.
 router.post('/wishlist', talentController.addToWishlist);
 router.get('/wishlist', talentController.getWishlist);
 router.delete('/wishlist/:id', talentController.removeFromWishlist);
+router.post('/viewTalent', talentController.viewTalent); 
 
 module.exports = router;
