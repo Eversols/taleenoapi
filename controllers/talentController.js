@@ -240,7 +240,7 @@ exports.deleteTalent = async (req, res) => {
     }
 
     // Delete the talent
-    await talent.destroy();
+    await talent.destroy({ force: true });
 
     return res.json(
       sendJson(true, 'Talent deleted successfully')
