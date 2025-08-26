@@ -61,7 +61,15 @@ exports.getFeed = async (req, res) => {
                 LIMIT 1
               )`),
               'my_reaction'
-            ]
+            ],
+              [
+                sequelize.literal(`(
+                  SELECT COUNT(*) 
+                  FROM bookings b 
+                  WHERE b.talent_id = talent.id
+                )`),
+                'bookings_count'
+              ]
           ]
         }
       ]
@@ -114,6 +122,7 @@ exports.getFeed = async (req, res) => {
         country: user.talent?.country || null,
         profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
         video_url: user.talent?.video_url || null,
+        bookings_count: user.talent?.getDataValue('bookings_count') || 0,
         likes_count: user.talent?.getDataValue('likes_count') || 0,
         unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
         my_reaction: user.talent?.getDataValue('my_reaction') || null,
