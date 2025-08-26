@@ -7,7 +7,7 @@ const auth = require('../middleware/auth');
 router.use(auth);
 
 router.get('/', talentController.getUserDetails);
-router.delete('/:id', talentController.deleteTalent);
+router.post('/deleteTalent', talentController.deleteTalent);
 router.post('/like', talentController.likeTalent);  // Fixed: talentController.likeTalent
 router.post('/share', talentController.shareTalent); // Fixed: talentController.shareTalent
 

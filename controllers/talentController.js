@@ -221,15 +221,10 @@ exports.getUserDetails = async (req, res) => {
 // Delete a talent
 exports.deleteTalent = async (req, res) => {
   try {
-    const { id } = req.params;
-    
-    // Using raw query to find talent
-    const [talent] = await sequelize.query(`
-      SELECT * FROM talents WHERE id = :id LIMIT 1
-    `, {
-      replacements: { id },
-      type: sequelize.QueryTypes.SELECT
-    });
+    const { id } = req.body;
+
+    // Find the talent
+    const talent = await Talent.findByPk(id);
 
     if (!talent) {
       return res.status(404).json(
@@ -237,17 +232,15 @@ exports.deleteTalent = async (req, res) => {
       );
     }
 
-    if (talent.user_id !== req.user.id) {
+    // Authorization check (customize as needed)
+    if (!req.user || !req.user.id) {
       return res.status(403).json(
         sendJson(false, 'Not authorized to delete this talent')
       );
     }
 
-    await sequelize.query(`
-      DELETE FROM talents WHERE id = :id
-    `, {
-      replacements: { id }
-    });
+    // Delete the talent
+    await talent.destroy();
 
     return res.json(
       sendJson(true, 'Talent deleted successfully')
@@ -255,8 +248,8 @@ exports.deleteTalent = async (req, res) => {
   } catch (error) {
     console.error('Delete Talent Error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to delete talent', { 
-        error: error.message 
+      sendJson(false, 'Failed to delete talent', {
+        error: error.message
       })
     );
   }
