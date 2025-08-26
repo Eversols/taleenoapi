@@ -127,7 +127,8 @@ exports.getFeed = async (req, res) => {
         unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
         my_reaction: user.talent?.getDataValue('my_reaction') || null,
         rating: user.rating || 5.0,
-        skills: skillsWithRate
+        skills: skillsWithRate,
+        views: user.views || 0
       });
     }
 

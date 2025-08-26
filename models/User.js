@@ -124,6 +124,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false
     },
+    views: {
+      type: DataTypes.INTEGER,   // or BIGINT if you expect huge counts
+      allowNull: false,
+      defaultValue: 0
+    }
 
   }, {
     sequelize,
