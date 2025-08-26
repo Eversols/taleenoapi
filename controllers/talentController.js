@@ -416,3 +416,35 @@ exports.removeFromWishlist = async (req, res) => {
     );
   }
 };
+
+exports.viewTalent = async (req, res) => {
+  try {
+    const { talent_id } = req.body;
+
+    if (!talent_id) {
+      return res.status(400).json(sendJson(false, "Talent ID is required"));
+    }
+
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json(sendJson(false, "Unauthorized"));
+    }
+
+    // Increment views for this talent
+    await sequelize.query(`
+      UPDATE users 
+      SET views = COALESCE(views, 0) + 1 
+      WHERE id = :talent_id
+    `, {
+      replacements: { talent_id }
+    });
+
+    return res.status(200).json(sendJson(true, "Talent view incremented successfully"));
+
+  } catch (error) {
+    console.error("❌ ViewTalent Error:", error);
+    return res.status(500).json(
+      sendJson(false, "Failed to increment views", { error: error.message })
+    );
+  }
+};
