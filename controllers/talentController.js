@@ -53,13 +53,7 @@ exports.likeTalent = async (req, res) => {
 
     if (existingReaction) {
       if (existingReaction.type === type) {
-        console.log("🗑 Removing same reaction (toggle off)");
-        await sequelize.query(`
-          DELETE FROM likes
-          WHERE id = :id
-        `, {
-          replacements: { id: existingReaction.id }
-        });
+        return res.status(400).json(sendJson(false, 'This Talent Already '+type));
       } else {
         console.log("✏ Updating reaction to new type:", type);
         await sequelize.query(`
