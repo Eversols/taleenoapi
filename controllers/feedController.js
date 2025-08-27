@@ -114,6 +114,7 @@ exports.getFeed = async (req, res) => {
 
       feed.push({
         id: user.id,
+        talent_id: user.talent?.id || null,
         username: user.username,
         full_name: user.talent?.full_name || null,
         talent_type: user.talent?.main_talent || null,
