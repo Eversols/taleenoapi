@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client, Follow ,sequelize} = require('../models');
+const { User, Talent, Client, Follow , Skill,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 
 exports.register = async (req, res) => {
@@ -93,14 +93,11 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone_number, code } = req.body;
 
-    // Find user with valid OTP
     const user = await User.findOne({
       where: {
         phone_number,
         verification_code: code,
-        verification_code_expire: {
-          [Op.gt]: new Date()
-        }
+        verification_code_expire: { [Op.gt]: new Date() }
       },
       include: [
         {
@@ -115,28 +112,48 @@ exports.verifyOTP = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json(sendJson(false, 'Invalid or expired OTP'));
+      return res.status(400).json({ status: false, message: 'Invalid or expired OTP' });
     }
 
-    // Mark user as verified
+    // mark verified
     await user.update({
       is_verified: true,
       verification_code: null,
       verification_code_expire: null
     });
 
-    // Count followers & followings
+    // counts
     const [followersCount, followingsCount] = await Promise.all([
-      Follow.count({ where: { followingId: user.id } }), // People following me
-      Follow.count({ where: { followerId: user.id } })   // People I follow
+      Follow.count({ where: { followingId: user.id } }),
+      Follow.count({ where: { followerId: user.id } })
     ]);
 
-    // Generate JWT token
+    // token
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE
     });
 
-    // Prepare user data based on role
+    // 👉 Fetch all skills dictionary
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    // 👉 Attach skill names to talent
+    let talentData = null;
+    if (user.role === 'talent' && user.talent) {
+      talentData = {
+        ...user.talent.toJSON(),
+        skills: (user.talent.skills || []).map(s => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,  // map id → name
+          rate: s.rate
+        }))
+      };
+    }
+
+    // response
     const userData = {
       token,
       id: user.id,
@@ -149,22 +166,26 @@ exports.verifyOTP = async (req, res) => {
       notification_alert: user.notification_alert,
       followers: followersCount,
       followings: followingsCount,
-      ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
+      ...(user.role === 'talent' ? { talent: talentData } : { client: user.client })
     };
 
-    return res.status(201).json(
-      sendJson(true, 'Successfully verified', userData)
-    );
+    return res.status(201).json({
+      status: true,
+      message: 'Successfully verified',
+      data: userData
+    });
 
   } catch (error) {
     console.error('OTP verification error:', error);
-    return res.status(500).json(
-      sendJson(false, 'Server error during verification', {
-        error: error.message
-      })
-    );
+    return res.status(500).json({
+      status: false,
+      message: 'Server error during verification',
+      error: error.message
+    });
   }
 };
+
+
 
 // Login with phone number (send OTP)
 exports.loginWithPhone = async (req, res) => {
