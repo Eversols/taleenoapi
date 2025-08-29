@@ -59,6 +59,16 @@ exports.list = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL;
 
+    // ✅ Extract pagination params (default page=1, limit=10)
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 10;
+    let offset = (page - 1) * limit;
+
+    // ✅ Fetch total count for pagination metadata
+    const totalCount = await Media.count({
+      where: { userId: req.user.id }
+    });
+
     const media = await Media.findAll({
       where: { userId: req.user.id },
       attributes: {
@@ -79,7 +89,10 @@ exports.list = async (req, res) => {
           as: 'skill',
           attributes: ['id', 'name']
         }
-      ]
+      ],
+      limit,
+      offset,
+      order: [['id', 'DESC']] // optional sorting
     });
 
     // Append BASE_URL to fileUrl
@@ -89,9 +102,16 @@ exports.list = async (req, res) => {
       return data;
     });
 
+    // ✅ Return paginated response
     return res.status(200).json(
       sendJson(true, 'Media retrieved successfully', {
-        media: formattedMedia
+        media: formattedMedia,
+        pagination: {
+          total: totalCount,
+          page,
+          limit,
+          totalPages: Math.ceil(totalCount / limit)
+        }
       })
     );
   } catch (error) {
