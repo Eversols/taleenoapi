@@ -1,4 +1,4 @@
-const { Like, Share, Talent, User, Wishlist,Skill,sequelize } = require('../models');
+const { Like, Share, Talent, User, Wishlist, Skill, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -53,7 +53,7 @@ exports.likeTalent = async (req, res) => {
 
     if (existingReaction) {
       if (existingReaction.type === type) {
-        return res.status(400).json(sendJson(false, 'This Talent Already '+type));
+        return res.status(400).json(sendJson(false, 'This Talent Already ' + type));
       } else {
         console.log("✏ Updating reaction to new type:", type);
         await sequelize.query(`
@@ -192,9 +192,29 @@ exports.getUserDetails = async (req, res) => {
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
-    // Add full URL for profile photo if talent
-    if (user.role === 'talent' && user.talent?.profile_photo) {
-      user.talent.profile_photo = `${BASE_URL}/${user.talent.profile_photo.replace(/^\//, '')}`;
+    // 👉 Fetch all skills dictionary
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    // 👉 Attach skill names to talent
+    let talentData = null;
+    if (user.role === 'talent' && user.talent) {
+      talentData = {
+        ...user.talent.toJSON(),
+        skills: (user.talent.skills || []).map(s => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,
+          rate: s.rate
+        }))
+      };
+
+      // ✅ Fix: update profile_photo directly on talentData
+      if (talentData.profile_photo) {
+        talentData.profile_photo = `${BASE_URL}/${talentData.profile_photo.replace(/^\//, '')}`;
+      }
     }
 
     const userData = {
@@ -205,7 +225,7 @@ exports.getUserDetails = async (req, res) => {
       role: user.role,
       is_verified: user.is_verified,
       on_board: user.on_board,
-      ...(user.role === 'talent' ? { talent: user.talent } : { client: user.client })
+      ...(user.role === 'talent' ? { talent: talentData } : { client: user.client })
     };
 
     return res.json(sendJson(true, 'User details fetched successfully', userData));
@@ -216,6 +236,7 @@ exports.getUserDetails = async (req, res) => {
     );
   }
 };
+
 
 
 // Delete a talent
@@ -267,8 +288,8 @@ exports.addToWishlist = async (req, res) => {
     }
 
     // Check if already in wishlist
-    const existingWishlist = await Wishlist.findOne({ 
-      where: { userId, talentId } 
+    const existingWishlist = await Wishlist.findOne({
+      where: { userId, talentId }
     });
 
     if (existingWishlist) {
@@ -284,8 +305,8 @@ exports.addToWishlist = async (req, res) => {
   } catch (error) {
     console.error('Add to Wishlist Error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to add to wishlist', { 
-        error: error.message 
+      sendJson(false, 'Failed to add to wishlist', {
+        error: error.message
       })
     );
   }
@@ -344,9 +365,9 @@ exports.getWishlist = async (req, res) => {
   GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
   ORDER BY w.id DESC
 `, {
-  replacements: { userId },
-  type: sequelize.QueryTypes.SELECT
-});
+      replacements: { userId },
+      type: sequelize.QueryTypes.SELECT
+    });
 
 
     const formattedWishlist = rows.map(row => ({
@@ -356,7 +377,7 @@ exports.getWishlist = async (req, res) => {
         userId: row.user_id,
         username: row.username,
         skills: row.skills,
-        profile_photo: row.profile_photo 
+        profile_photo: row.profile_photo
           ? `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
           : null,
       }
@@ -371,8 +392,8 @@ exports.getWishlist = async (req, res) => {
   } catch (error) {
     console.error('Get Wishlist Error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to retrieve wishlist', { 
-        error: error.message 
+      sendJson(false, 'Failed to retrieve wishlist', {
+        error: error.message
       })
     );
   }
@@ -387,8 +408,8 @@ exports.removeFromWishlist = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const wishlistItem = await Wishlist.findOne({ 
-      where: { id, userId } 
+    const wishlistItem = await Wishlist.findOne({
+      where: { id, userId }
     });
 
     if (!wishlistItem) {
@@ -403,8 +424,8 @@ exports.removeFromWishlist = async (req, res) => {
   } catch (error) {
     console.error('Remove from Wishlist Error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to remove from wishlist', { 
-        error: error.message 
+      sendJson(false, 'Failed to remove from wishlist', {
+        error: error.message
       })
     );
   }
