@@ -33,12 +33,16 @@ exports.getBookings = async (req, res) => {
     const userId = req.user.id;
     const role = req.user.role;
     const searchDate = req.query.date || null; // Only YYYY-MM-DD, valid MySQL date
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
     let whereClause = '';
     if (searchDate) {
       whereClause = `AND DATE(b.created_at) = :searchDate`;
     }
     let results = [];
+    let totalCount = 0;
 
     if (role === "talent") {
       [results] = await sequelize.query(`
@@ -94,7 +98,18 @@ exports.getBookings = async (req, res) => {
         WHERE t.user_id = :userId
         ${whereClause}
         ORDER BY b.created_at DESC
+        LIMIT :limit OFFSET :offset
+      `, { replacements: { userId, searchDate, limit, offset } });
+
+      // ✅ Get total count
+      [[{ total }]] = await sequelize.query(`
+        SELECT COUNT(*) as total
+        FROM bookings b
+        LEFT JOIN talents t ON b.talent_id = t.id
+        WHERE t.user_id = :userId
+        ${whereClause}
       `, { replacements: { userId, searchDate } });
+      totalCount = total;
 
     } else if (role === "client") {
       [results] = await sequelize.query(`
@@ -150,7 +165,17 @@ exports.getBookings = async (req, res) => {
         WHERE c.user_id = :userId
         ${whereClause}
         ORDER BY b.created_at DESC
+        LIMIT :limit OFFSET :offset
+      `, { replacements: { userId, searchDate, limit, offset } });
+
+      [[{ total }]] = await sequelize.query(`
+        SELECT COUNT(*) as total
+        FROM bookings b
+        LEFT JOIN clients c ON b.client_id = c.id
+        WHERE c.user_id = :userId
+        ${whereClause}
       `, { replacements: { userId, searchDate } });
+      totalCount = total;
 
     } else {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
@@ -179,7 +204,6 @@ exports.getBookings = async (req, res) => {
 
         ...(role === "talent"
           ? {
-              // Show Client details if Talent logged in
               client_name: row.client_full_name || '',
               client_country: row.client_country || '',
               client_profile_photo: row.client_profile_photo
@@ -189,7 +213,6 @@ exports.getBookings = async (req, res) => {
                 : null,
             }
           : {
-              // Show Talent details if Client logged in
               talent_name: row.talent_full_name || '',
               talent_profile_photo: row.client_profile_photo
                 ? (row.client_profile_photo.startsWith('http')
@@ -200,7 +223,6 @@ exports.getBookings = async (req, res) => {
       };
     });
 
-    // ✅ NEW: Transform to your requested format
     const bookings = {
       totaltask: Bookings.length,
       totalHour,
@@ -216,7 +238,10 @@ exports.getBookings = async (req, res) => {
         bookingid: b.booking_id,
         profilePhoto: role === "talent" ? b.client_profile_photo : b.talent_profile_photo,
         rating: b.rating || 0
-      }))
+      })),
+      totalRecords: totalCount,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit)
     };
 
     return res.status(200).json(
