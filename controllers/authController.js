@@ -166,7 +166,7 @@ exports.verifyOTP = async (req, res) => {
       notification_alert: user.notification_alert,
       followers: followersCount,
       followings: followingsCount,
-      ...(user.role === 'talent' ? { talent: talentData } : { client: user.client })
+      userInfo: user.role === "talent" ? talentData : user.client
     };
 
     return res.status(201).json({
