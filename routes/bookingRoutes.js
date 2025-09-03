@@ -11,7 +11,7 @@ router.get('/MyBookingsForTalent', authenticate, bookingController.MyBookingsFor
 router.post('/getBookingDetails', authenticate,bookingController.getBookingDetails);
 router.post('/update-status', authenticate,bookingController.updateBookingStatus);
 router.get('/bookings-Slots-have-talent', authenticate,bookingController.MyBookingSlotsForTalent);
-router.get('/bookingsSlotshaveclient', authenticate,bookingController.bookingsSlotshaveclient);
+router.post('/bookingsSlotshaveclient', authenticate,bookingController.bookingsSlotshaveclient);
 
 
 module.exports = router;
