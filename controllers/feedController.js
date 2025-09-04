@@ -1,4 +1,4 @@
-const { User, Skill, sequelize } = require('../models');
+const { User, Skill, TableHints, sequelize } = require('../models'); // added TableHints
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -34,7 +34,7 @@ exports.getFeed = async (req, res) => {
             'video_url',
             'main_talent',
             'skills',
-            // ✅ Like counts
+            // Like counts
             [
               sequelize.literal(`(
                 SELECT COUNT(*) 
@@ -43,7 +43,7 @@ exports.getFeed = async (req, res) => {
               )`),
               'likes_count'
             ],
-            // ✅ Unlike counts
+            // Unlike counts
             [
               sequelize.literal(`(
                 SELECT COUNT(*) 
@@ -52,7 +52,7 @@ exports.getFeed = async (req, res) => {
               )`),
               'unlikes_count'
             ],
-            // ✅ Current user reaction (like/unlike/null)
+            // Current user reaction
             [
               sequelize.literal(`(
                 SELECT type 
@@ -66,11 +66,12 @@ exports.getFeed = async (req, res) => {
             [
               sequelize.literal(`(
                 SELECT COUNT(*) 
-                FROM bookings b 
+                FROM bookings b
+                INNER JOIN talents th ON th.id = b.talent_id
                 WHERE b.talent_id = talent.id
               )`),
               'bookings_count'
-            ]
+]
           ]
         }
       ]
@@ -81,13 +82,13 @@ exports.getFeed = async (req, res) => {
     for (const user of users) {
       let staticSkillRates = user.talent?.skills || [];
 
-      // filter by skill
+      // Filter by skill
       if (skill_id) {
         staticSkillRates = staticSkillRates.filter(sr => sr.id == skill_id);
         if (staticSkillRates.length === 0) continue;
       }
 
-      // filter by price range
+      
       if (price_range) {
         const [minPrice, maxPrice] = price_range.split('-').map(Number);
         staticSkillRates = staticSkillRates.filter(sr => {
@@ -125,10 +126,10 @@ exports.getFeed = async (req, res) => {
         country: user.talent?.country || null,
         profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
         video_url: user.talent?.video_url || null,
-        bookings_count: user.talent?.getDataValue('bookings_count') || 0,
+        jobs: user.talent?.getDataValue('bookings_count') || 0,
         likes_count: user.talent?.getDataValue('likes_count') || 0,
         unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
-        reaction: user.talent?.getDataValue('reaction') || null, // ✅ fixed
+        reaction: user.talent?.getDataValue('reaction') || null,
         rating: user.rating || 5.0,
         skills: skillsWithRate,
         views: user.views || 0
