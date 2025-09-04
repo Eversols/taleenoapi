@@ -377,10 +377,10 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json(sendJson(false, 'User not found'));
     }
 
-    // ✅ Correct way to get uploaded file
     let profile_photo = null;
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     if (req.file && req.file.filename) {
-      profile_photo = `/uploads/${req.file.filename}`;
+      profile_photo = `${BASE_URL}/uploads/${req.file.filename}`;
     }
 
     // Update based on role
@@ -405,11 +405,16 @@ exports.updateProfile = async (req, res) => {
         city,
         profile_photo
       });
-      
     }
 
+    // Prepare response with 'userinfo' key
+    const userData = user.toJSON();
+    userData.userinfo = req.user.role === 'talent' ? userData.talent : userData.client;
+    delete userData.talent;
+    delete userData.client;
+
     return res.status(200).json(
-      sendJson(true, 'Profile updated successfully', { user })
+      sendJson(true, 'Profile updated successfully', { user: userData })
     );
   } catch (error) {
     console.error(error);
