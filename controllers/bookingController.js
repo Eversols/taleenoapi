@@ -591,23 +591,49 @@ exports.ByDateBookings = async (req, res) => {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const searchDate = req.query.date || null;
 
+    // Assume req.user.role is either "talent" or "client"
+    const userRole = req.user?.role;
+
+    if (!userRole) {
+      return res.status(401).json(
+        sendJson(false, 'Unauthorized: Role not found')
+      );
+    }
+
     let whereClause = '';
     if (searchDate) {
       whereClause = `WHERE DATE(b.created_at) = :searchDate`;
     }
 
+    // Decide what to select depending on role
+    const selectFields =
+      userRole === 'talent'
+        ? `
+            c.full_name AS client_name,
+            c.country AS client_country,
+            c.profile_photo AS profile_photo
+          `
+        : `
+            t.full_name AS talent_name,
+            t.country AS talent_country,
+            t.profile_photo AS profile_photo
+          `;
+
+    const joinClause =
+      userRole === 'talent'
+        ? `LEFT JOIN clients c ON b.client_id = c.id`
+        : `LEFT JOIN talents t ON b.talent_id = t.id`;
+
     const [results] = await sequelize.query(
       `
       SELECT 
-        t.full_name AS talent_name,
+        b.id AS booking_id,
         DATE(b.created_at) AS booking_date,
         b.time_slot AS booking_time,
-        b.id AS booking_id,
         r.rating,
-        t.country AS talent_country,
-        t.profile_photo AS profile_photo
+        ${selectFields}
       FROM bookings b
-      LEFT JOIN talents t ON b.talent_id = t.id
+      ${joinClause}
       LEFT JOIN reviews r ON r.booking_id = b.id AND r.deleted_at IS NULL
       ${whereClause}
       ORDER BY b.created_at DESC
@@ -617,6 +643,7 @@ exports.ByDateBookings = async (req, res) => {
       }
     );
 
+    // Map data depending on role
     const simplifiedBookings = results.map(row => {
       const profileImage = row.profile_photo
         ? row.profile_photo.startsWith('http')
@@ -624,15 +651,27 @@ exports.ByDateBookings = async (req, res) => {
           : `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
         : null;
 
-      return {
-        booking_id: row.booking_id || '',
-        talent_name: row.talent_name || '',
-        booking_date: row.booking_date || '',
-        booking_time: row.booking_time || '',
-        rating: row.rating || null,
-        talent_country: row.talent_country || '',
-        profile_photo: profileImage
-      };
+      if (userRole === 'talent') {
+        return {
+          booking_id: row.booking_id || '',
+          name: row.client_name || '',
+          booking_date: row.booking_date || '',
+          booking_time: row.booking_time || '',
+          rating: row.rating || null,
+          country: row.client_country || '',
+          profile_photo: profileImage
+        };
+      } else {
+        return {
+          booking_id: row.booking_id || '',
+          name: row.talent_name || '',
+          booking_date: row.booking_date || '',
+          booking_time: row.booking_time || '',
+          rating: row.rating || null,
+          country: row.talent_country || '',
+          profile_photo: profileImage
+        };
+      }
     });
 
     return res.status(200).json(
@@ -649,6 +688,7 @@ exports.ByDateBookings = async (req, res) => {
     );
   }
 };
+
 
 exports.MyBookingsForTalent = async (req, res) => {
   try {
