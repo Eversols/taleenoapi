@@ -6,6 +6,7 @@ const auth = require('../middleware/auth');
 
 router.use(auth);
 router.post('/', reportController.submitReport);  // Fixed: reportController.likeTalent
+router.post('/user', reportController.submitUser);  // Fixed: reportController.likeTalent
 
 
 module.exports = router;
