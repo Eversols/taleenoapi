@@ -445,15 +445,13 @@ exports.updateProfile = async (req, res) => {
     }, {});
 
     // 👉 Attach skill names to talent
-    let talentData = null;
+    let talentData = [];
     if (user.role === 'talent' && user.talent) {
-      talentData = {
-        skills: (user.talent.skills || []).map(s => ({
-          id: s.id,
-          name: skillsMap[s.id] || null,  // map id → name
-          rate: s.rate
-        }))
-      };
+      talentData = (user.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,  // map id → name
+        rate: s.rate
+      }));
     }
 
     const userData = user.toJSON();
