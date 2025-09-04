@@ -363,7 +363,7 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, city, languages, hourly_rate } = req.body;
+    const { full_name, gender, age, country, city, languages, hourly_rate ,interests} = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -399,6 +399,7 @@ exports.updateProfile = async (req, res) => {
       await user.update({ on_board: 1 });
       await user.client.update({
         full_name,
+        interests,
         gender,
         age,
         country,
