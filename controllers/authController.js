@@ -363,7 +363,7 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, city, languages, hourly_rate ,interests} = req.body;
+    const { full_name, gender, age, country, city, languages, hourly_rate, interests } = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -377,11 +377,8 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json(sendJson(false, 'User not found'));
     }
 
-    let profile_photo = null;
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
-    if (req.file && req.file.filename) {
-      profile_photo = `${BASE_URL}/uploads/${req.file.filename}`;
-    }
+    let profile_photo = req.file?.filename ? `${BASE_URL}/uploads/${req.file.filename}` : null;
 
     // Update based on role
     if (req.user.role === 'talent') {
@@ -399,18 +396,51 @@ exports.updateProfile = async (req, res) => {
       await user.update({ on_board: 1 });
       await user.client.update({
         full_name,
-        interests,
         gender,
         age,
         country,
         city,
+        interests,
         profile_photo
       });
     }
 
-    // Prepare response with 'userinfo' key
+    // Reload updated client/talent
+    await user.reload({
+      include: [
+        {
+          association: req.user.role === 'talent' ? 'talent' : 'client'
+        }
+      ]
+    });
+
+    // Prepare interests for response
+    const talents = await Talent.findAll();
+    const TalentsMap = {};
+    talents.forEach(t => {
+      TalentsMap[t.id] = t.full_name;
+    });
+
+    let clientInterests = [];
+    if (req.user.role === 'client' && user.client?.interests) {
+      const interestIds = Array.isArray(user.client.interests)
+        ? user.client.interests
+            .map(i => i.toString().split(','))
+            .flat()
+            .map(id => parseInt(id))
+            .filter(id => !isNaN(id))
+        : [];
+
+      clientInterests = interestIds.map(id => ({
+        id,
+        name: TalentsMap[id] || null
+      }));
+    }
+
     const userData = user.toJSON();
     userData.userinfo = req.user.role === 'talent' ? userData.talent : userData.client;
+    if (req.user.role === 'client') userData.userinfo.interests = clientInterests;
+
     delete userData.talent;
     delete userData.client;
 
