@@ -18,5 +18,6 @@ router.post('/updateTalentDetails', authMiddleware, authController.updateTalentD
 router.post('/Setnotificationalert', authMiddleware, authController.Setnotificationalert);
 router.get('/me', authMiddleware, authController.getMe);
 router.post('/deleteUser', authMiddleware, authController.deleteUser);
+router.post('/blockUser', authMiddleware, authController.blockUser);
 
 module.exports = router;
