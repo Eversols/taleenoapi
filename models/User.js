@@ -128,6 +128,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,   // or BIGINT if you expect huge counts
       allowNull: false,
       defaultValue: 0
+    },
+    is_blocked: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Indicates if user is blocked (true) or active (false)'
     }
 
   }, {

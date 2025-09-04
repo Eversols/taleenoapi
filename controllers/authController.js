@@ -199,7 +199,11 @@ exports.loginWithPhone = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
-
+    if (user.is_blocked) {
+      return res.status(403).json(
+        sendJson(false, 'Your account has been blocked. Please contact support.')
+      );
+    }
     // Generate OTP
     // const otp = generateOTP();
     const otp = "1234";
@@ -246,6 +250,11 @@ exports.verifyLoginOTP = async (req, res) => {
       );
     }
 
+    if (user.is_blocked) {
+      return res.status(403).json(
+        sendJson(false, 'Your account has been blocked. Please contact support.')
+      );
+    }
     // Clear OTP
     await user.update({
       verification_code: null,
@@ -561,4 +570,35 @@ exports.deleteUser = async (req, res) => {
     );
   }
 };
+
+// Block or Unblock User API
+exports.blockUser = async (req, res) => {
+  try {
+    const { user_id } = req.body; // 👈 ID of user to block/unblock (for admin)
+    const user = await User.findByPk(user_id);
+
+    if (!user) {
+      return res.status(404).json(sendJson(false, 'User not found'));
+    }
+
+    // Toggle block status
+    const newStatus = user.is_blocked ? 0 : 1;
+    await user.update({ is_blocked: newStatus });
+
+    return res.status(200).json(
+      sendJson(true, `User ${newStatus ? 'blocked' : 'unblocked'} successfully`, {
+        user_id: user.id,
+        is_blocked: newStatus
+      })
+    );
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to block/unblock user', {
+        error: error.message
+      })
+    );
+  }
+};
+
 
