@@ -880,3 +880,49 @@ exports.bookingsSlotshaveclient = async (req, res) => {
   }
 };
 
+exports.MyBookingSlotsForClient = async (req, res) => {
+  try {
+    const clientId = req.user.id;
+
+    const [results] = await sequelize.query(
+      `SELECT 
+        DATE(b.created_at) AS booking_date,
+        b.time_slot AS booking_time
+      FROM bookings b
+      JOIN clients c ON b.client_id = c.id
+      WHERE c.user_id = :clientId
+      ORDER BY b.created_at ASC`,
+      {
+        replacements: { clientId }
+      }
+    );
+
+    // Group by booking_date with only time in slots
+    const grouped = results.reduce((acc, row) => {
+      const date = row.booking_date;
+      if (!acc[date]) {
+        acc[date] = {
+          booking_date: date,
+          slots: []
+        };
+      }
+      acc[date].slots.push({
+        booking_time: row.booking_time
+      });
+      return acc;
+    }, {});
+
+    const bookings = Object.values(grouped);
+
+    return res.status(200).json(
+      sendJson(true, 'All booking slots retrieved', { bookings })
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch booking slots', { error: error.message })
+    );
+  }
+};
+
+
