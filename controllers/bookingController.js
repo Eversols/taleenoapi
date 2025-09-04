@@ -628,6 +628,7 @@ exports.ByDateBookings = async (req, res) => {
       `
       SELECT 
         b.id AS booking_id,
+        b.note AS description,
         b.status AS status,
         DATE(b.created_at) AS booking_date,
         b.time_slot AS booking_time,
@@ -657,6 +658,7 @@ exports.ByDateBookings = async (req, res) => {
           booking_id: row.booking_id || '',
           status: row.status || '',
           name: row.client_name || '',
+          description: row.description || '',
           booking_date: row.booking_date || '',
           booking_time: row.booking_time || '',
           rating: row.rating || null,
@@ -668,6 +670,7 @@ exports.ByDateBookings = async (req, res) => {
           booking_id: row.booking_id || '',
           status: row.status || '',
           name: row.talent_name || '',
+          description: row.description || '',
           booking_date: row.booking_date || '',
           booking_time: row.booking_time || '',
           rating: row.rating || null,
