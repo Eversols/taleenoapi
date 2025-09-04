@@ -437,9 +437,29 @@ exports.updateProfile = async (req, res) => {
       }));
     }
 
+        // 👉 Fetch all skills dictionary
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    // 👉 Attach skill names to talent
+    let talentData = null;
+    if (user.role === 'talent' && user.talent) {
+      talentData = {
+        skills: (user.talent.skills || []).map(s => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,  // map id → name
+          rate: s.rate
+        }))
+      };
+    }
+
     const userData = user.toJSON();
     userData.userinfo = req.user.role === 'talent' ? userData.talent : userData.client;
     if (req.user.role === 'client') userData.userinfo.interests = clientInterests;
+    if (req.user.role === 'talent') userData.userinfo.skills = talentData;
 
     delete userData.talent;
     delete userData.client;
