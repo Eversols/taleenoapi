@@ -479,7 +479,7 @@ exports.getBookingDetails = async (req, res) => {
       // Show client details if logged in as Talent
       response = {
         booking_id: row.booking_id,
-        user_id : row.client_id,
+        user_id : row.client_user_id,
         date,
         time,
         location,
@@ -494,7 +494,7 @@ exports.getBookingDetails = async (req, res) => {
       // Show talent details if logged in as Client
       response = {
         booking_id: row.booking_id,
-        user_id : row.talent_id,
+        user_id : row.talent_user_id,
         date,
         time,
         location,
