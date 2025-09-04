@@ -6,7 +6,7 @@ const { generateOTP, sendJson } = require('../utils/helpers');
 
 exports.register = async (req, res) => {
   try {
-    const { username, phone_number, role } = req.body;
+    const { username, phone_number, role ,availability} = req.body;
 
     if (!username || !phone_number) {
       return res.status(400).json(
@@ -45,7 +45,8 @@ exports.register = async (req, res) => {
       phone_number,
       email: defaultEmail,
       password: defaultPassword,
-      role: role || 'client'
+      role: role || 'client',
+      availability
     });
 
     // Generate OTP

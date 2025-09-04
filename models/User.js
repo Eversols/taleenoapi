@@ -133,7 +133,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       comment: 'Indicates if user is blocked (true) or active (false)'
-    }
+    },
+    availability: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
 
   }, {
     sequelize,
