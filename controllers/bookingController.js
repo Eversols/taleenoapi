@@ -628,6 +628,7 @@ exports.ByDateBookings = async (req, res) => {
       `
       SELECT 
         b.id AS booking_id,
+        b.status AS status,
         DATE(b.created_at) AS booking_date,
         b.time_slot AS booking_time,
         r.rating,
@@ -654,6 +655,7 @@ exports.ByDateBookings = async (req, res) => {
       if (userRole === 'talent') {
         return {
           booking_id: row.booking_id || '',
+          status: row.status || '',
           name: row.client_name || '',
           booking_date: row.booking_date || '',
           booking_time: row.booking_time || '',
@@ -664,6 +666,7 @@ exports.ByDateBookings = async (req, res) => {
       } else {
         return {
           booking_id: row.booking_id || '',
+          status: row.status || '',
           name: row.talent_name || '',
           booking_date: row.booking_date || '',
           booking_time: row.booking_time || '',
