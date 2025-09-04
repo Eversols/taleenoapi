@@ -1,6 +1,7 @@
-const { User, Skill ,sequelize} = require('../models');
+const { User, Skill, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
+
 exports.getFeed = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL;
@@ -51,25 +52,25 @@ exports.getFeed = async (req, res) => {
               )`),
               'unlikes_count'
             ],
-            // ✅ Logged-in user’s reaction
+            // ✅ Current user reaction (like/unlike/null)
             [
               sequelize.literal(`(
                 SELECT type 
                 FROM likes l 
                 WHERE l.talent_id = talent.id 
-                  AND l.user_id = ${req.user?.id || 0}
+                  ${req.user ? `AND l.user_id = ${req.user.id}` : ``}
                 LIMIT 1
               )`),
-              'my_reaction'
+              'reaction'
             ],
-              [
-                sequelize.literal(`(
-                  SELECT COUNT(*) 
-                  FROM bookings b 
-                  WHERE b.talent_id = talent.id
-                )`),
-                'bookings_count'
-              ]
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*) 
+                FROM bookings b 
+                WHERE b.talent_id = talent.id
+              )`),
+              'bookings_count'
+            ]
           ]
         }
       ]
@@ -114,6 +115,7 @@ exports.getFeed = async (req, res) => {
 
       feed.push({
         id: user.id,
+        user_id: user.id,
         talent_id: user.talent?.id || null,
         username: user.username,
         full_name: user.talent?.full_name || null,
@@ -126,7 +128,7 @@ exports.getFeed = async (req, res) => {
         bookings_count: user.talent?.getDataValue('bookings_count') || 0,
         likes_count: user.talent?.getDataValue('likes_count') || 0,
         unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
-        my_reaction: user.talent?.getDataValue('my_reaction') || null,
+        reaction: user.talent?.getDataValue('reaction') || null, // ✅ fixed
         rating: user.rating || 5.0,
         skills: skillsWithRate,
         views: user.views || 0
@@ -144,4 +146,3 @@ exports.getFeed = async (req, res) => {
     );
   }
 };
-
