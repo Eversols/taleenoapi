@@ -519,3 +519,46 @@ exports.Setnotificationalert = async (req, res) => {
     );
   }
 };
+
+// Delete User API
+exports.deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    // Find user with relations
+    const user = await User.findByPk(userId, {
+      include: [
+        { model: Talent, as: 'talent' },
+        { model: Client, as: 'client' }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json(
+        sendJson(false, 'User not found')
+      );
+    }
+
+    // Delete associated talent/client
+    if (user.role === 'talent' && user.talent) {
+      await user.talent.destroy({ force: true });
+    } else if (user.role === 'client' && user.client) {
+      await user.client.destroy({ force: true });
+    }
+
+    // Finally delete the user itself
+    await user.destroy({ force: true });
+
+    return res.status(200).json(
+      sendJson(true, 'User deleted successfully')
+    );
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to delete user', {
+        error: error.message
+      })
+    );
+  }
+};
+

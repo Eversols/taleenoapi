@@ -17,5 +17,6 @@ router.post('/updateProfile', authMiddleware,upload.single('profile_photo'), aut
 router.post('/updateTalentDetails', authMiddleware, authController.updateTalentDetails);
 router.post('/Setnotificationalert', authMiddleware, authController.Setnotificationalert);
 router.get('/me', authMiddleware, authController.getMe);
+router.post('/deleteUser', authMiddleware, authController.deleteUser);
 
 module.exports = router;
