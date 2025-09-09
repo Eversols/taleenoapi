@@ -1,6 +1,8 @@
 const { Booking, Client, Talent, User, Skill, Review } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
+const axios = require("axios");
+const { Payment } = require("../models");
 const { sendJson } = require('../utils/helpers');
 
 const BookingStatusEnum = [
@@ -982,3 +984,127 @@ exports.rescheduleBooking = async (req, res) => {
 };
 
 
+
+exports.createCheckout = async (req, res) => {
+  try {
+    const {
+      amount,
+      merchantTransactionId,
+      email,
+      street,
+      city,
+      state,
+      country,
+      postcode,
+      givenName,
+      surname
+    } = req.body;
+
+    if (!amount || !email || !merchantTransactionId) {
+      return res.status(400).json(sendJson(false, "Missing required fields"));
+    }
+
+    const data = new URLSearchParams({
+      entityId: "8ac7a4c79483092601948366b9d1011b",
+      amount: parseFloat(amount).toFixed(2),
+      currency: "SAR",
+      paymentType: "DB",
+      testMode: "EXTERNAL",
+      "customParameters[3DS2_enrolled]": "true",
+      merchantTransactionId,
+      "customer.email": email,
+      "billing.street1": street,
+      "billing.city": city,
+      "billing.state": state,
+      "billing.country": country,
+      "billing.postcode": postcode,
+      "customer.givenName": givenName,
+      "customer.surname": surname
+    });
+
+    const response = await axios.post(
+      "https://eu-test.oppwa.com/v1/checkouts",
+      data.toString(),
+      {
+        headers: {
+          Authorization:
+            "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo=",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    // ✅ Save checkout in DB
+    const payment = await Payment.create({
+      user_id: req.user.id,
+      transaction_id: merchantTransactionId,
+      amount: parseFloat(amount).toFixed(2),
+      currency: "SAR",
+      status: "PENDING",
+      checkout_id: response.data.id,
+      payment_type: "DB"
+    });
+
+    return res.status(201).json(
+      sendJson(true, "Checkout created successfully", {
+        id: payment.id,
+        checkoutId: response.data.id
+      })
+    );
+  } catch (error) {
+    console.error("HyperPay Checkout Error:", error.response?.data || error.message);
+    return res.status(500).json(
+      sendJson(false, "Failed to create checkout", {
+        error: error.response?.data || error.message
+      })
+    );
+  }
+};
+
+exports.getPaymentStatus = async (req, res) => {
+  try {
+    const { checkoutId } = req.query;
+
+    if (!checkoutId) {
+      return res.status(400).json(sendJson(false, "CheckoutId are required"));
+    }
+
+    const response = await axios.get(
+      `https://eu-test.oppwa.com?entityId=8ac7a4c79483092601948366b9d1011b`,
+      {
+        headers: {
+          Authorization:
+            "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo="
+        }
+      }
+    );
+
+    const result = response.data;
+
+    // ✅ Update payment record
+    const payment = await Payment.findOne({ where: { checkout_id: checkoutId } });
+    if (payment) {
+      await payment.update({
+        status: result.result?.code === "000.100.110" ? "SUCCESS" : "FAILED",
+        brand: result.paymentBrand || null,
+        result_code: result.result?.code || null,
+        result_description: result.result?.description || null
+      });
+    }
+
+    return res.status(200).json(
+      sendJson(true, "Payment status retrieved", {
+        id: payment?.id,
+        status: payment?.status,
+        result
+      })
+    );
+  } catch (error) {
+    console.error("HyperPay Status Error:", error.response?.data || error.message);
+    return res.status(500).json(
+      sendJson(false, "Failed to fetch payment status", {
+        error: error.response?.data || error.message
+      })
+    );
+  }
+};
