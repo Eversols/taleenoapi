@@ -545,6 +545,7 @@ exports.Setnotificationalert = async (req, res) => {
   try {
     // Fetch user by ID
     let user = await User.findByPk(req.user.id);
+    const { notification_alert } = req.body;
 
     if (!user) {
       return res.status(404).json(
@@ -553,7 +554,7 @@ exports.Setnotificationalert = async (req, res) => {
     }
 
     // Toggle notification_alert
-    const newAlertValue = user.notification_alert == '1' ? 0 : 1;
+    const newAlertValue = notification_alert;
     await user.update({ notification_alert: newAlertValue });
 
     // Fetch updated user with full details and relations
