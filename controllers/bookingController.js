@@ -927,5 +927,58 @@ exports.MyBookingSlotsForClient = async (req, res) => {
     );
   }
 };
+exports.rescheduleBooking = async (req, res) => {
+  try {
+    const { booking_id, new_date, new_time } = req.body;
+    const role = req.user.role;
+
+    if (!booking_id || !new_date || !new_time) {
+      return res.status(400).json(
+        sendJson(false, "booking_id, new_date and new_time are required")
+      );
+    }
+
+    // Find booking
+    const booking = await Booking.findByPk(booking_id);
+    if (!booking) {
+      return res.status(404).json(sendJson(false, "Booking not found"));
+    }
+
+    // ✅ Only client or talent who owns the booking can request reschedule
+    let owner;
+    if (role === "client") {
+      owner = await Client.findOne({ where: { user_id: req.user.id } });
+      if (!owner || booking.client_id !== owner.id) {
+        return res.status(403).json(sendJson(false, "Not authorized to reschedule this booking"));
+      }
+
+    } else if (role === "talent") {
+      owner = await Talent.findOne({ where: { user_id: req.user.id } });
+      if (!owner || booking.talent_id !== owner.id) {
+        return res.status(403).json(sendJson(false, "Not authorized to reschedule this booking"));
+      }
+    } else {
+      return res.status(403).json(sendJson(false, "Invalid role"));
+    }
+
+    // ✅ Update booking new schedule
+    booking.created_at = new_date;
+    booking.time_slot = new_time;
+    await booking.save();
+
+    return res.status(200).json(
+      sendJson(true, "Booking rescheduled successfully", {
+        booking_id: booking.id,
+        new_date,
+        new_time,
+      })
+    );
+  } catch (error) {
+    console.error("Error rescheduling booking:", error);
+    return res.status(500).json(
+      sendJson(false, "Failed to reschedule booking", { error: error.message })
+    );
+  }
+};
 
 

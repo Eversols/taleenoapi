@@ -13,6 +13,6 @@ router.post('/update-status', authenticate,bookingController.updateBookingStatus
 router.get('/bookings-Slots-have-talent', authenticate,bookingController.MyBookingSlotsForTalent);
 router.post('/MyBookingSlotsForClient', authenticate,bookingController.MyBookingSlotsForClient);
 router.post('/bookingsSlotshaveclient', authenticate,bookingController.bookingsSlotshaveclient);
-
+router.put("/reschedule", authenticate,bookingController.rescheduleBooking);
 
 module.exports = router;
