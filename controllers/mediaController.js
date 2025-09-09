@@ -11,7 +11,21 @@ exports.upload = async (req, res) => {
       );
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // ✅ Add original extension
+    const ext = path.extname(req.file.originalname);
+    const finalFileName = req.file.filename + ext;
+    const finalPath = path.join(path.dirname(req.file.path), finalFileName);
+
+    // ✅ If file already exists → remove it
+    if (fs.existsSync(finalPath)) {
+      fs.unlinkSync(finalPath);
+    }
+
+    // ✅ Rename uploaded file to include extension
+    fs.renameSync(req.file.path, finalPath);
+
+    const fileUrl = `/uploads/${finalFileName}`;
+
     const media = await Media.create({
       userId: req.user.id,
       skill_id: req.body.skill_id,
@@ -35,7 +49,7 @@ exports.upload = async (req, res) => {
           description: media.description,
           fileUrl: media.fileUrl,
           type: media.type,
-          skill: skill || null,  // Returns null if no skill found
+          skill: skill || null,
           visibility: media.visibility,
           createdAt: media.createdAt
         }
@@ -45,7 +59,11 @@ exports.upload = async (req, res) => {
   } catch (error) {
     // Clean up uploaded file if error occurs
     if (req.file) {
-      fs.unlinkSync(path.join(__dirname, '../public', req.file.path));
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        console.warn("Cleanup failed:", err.message);
+      }
     }
     return res.status(500).json(
       sendJson(false, 'Failed to upload media', {
@@ -145,7 +163,21 @@ exports.update = async (req, res) => {
       );
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // ✅ Add original extension
+    const ext = path.extname(req.file.originalname);
+    const finalFileName = req.file.filename + ext;
+    const finalPath = path.join(path.dirname(req.file.path), finalFileName);
+
+    // ✅ If file already exists → remove it
+    if (fs.existsSync(finalPath)) {
+      fs.unlinkSync(finalPath);
+    }
+
+    // ✅ Rename uploaded file to include extension
+    fs.renameSync(req.file.path, finalPath);
+
+    const fileUrl = `/uploads/${finalFileName}`;
+
     await media.update({
       skill_id: req.body.skill_id,
       title: req.body.title,
