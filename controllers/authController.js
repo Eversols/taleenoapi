@@ -456,15 +456,29 @@ exports.updateProfile = async (req, res) => {
     }
 
     const userData = user.toJSON();
-    userData.userinfo = req.user.role === 'talent' ? userData.talent : userData.client;
-    if (req.user.role === 'client') userData.userinfo.interests = clientInterests;
-    if (req.user.role === 'talent') userData.userinfo.skills = talentData;
 
-    delete userData.talent;
-    delete userData.client;
+    // ✅ Build unified userInfo
+    let userInfo = req.user.role === 'talent' ? userData.talent : userData.client;
+    if (req.user.role === 'client') userInfo.interests = clientInterests;
+    if (req.user.role === 'talent') userInfo.skills = talentData;
+
+    // ✅ Final shaped response
+    const response = {
+      id: userData.id,
+      username: userData.username,
+      phone_number: userData.phone_number,
+      email: userData.email,
+      role: userData.role,
+      is_verified: userData.is_verified,
+      on_board: userData.on_board,
+      notification_alert: userData.notification_alert,
+      followers: 0,   // replace with real DB count if needed
+      followings: 1,  // replace with real DB count if needed
+      userInfo
+    };
 
     return res.status(200).json(
-      sendJson(true, 'Profile updated successfully', { user: userData })
+      sendJson(true, 'Profile updated successfully', response)
     );
   } catch (error) {
     console.error(error);
