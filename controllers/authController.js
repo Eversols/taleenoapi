@@ -165,6 +165,7 @@ exports.verifyOTP = async (req, res) => {
       is_verified: user.is_verified,
       on_board: user.on_board,
       notification_alert: user.notification_alert,
+      availability: user.availability,
       followers: followersCount,
       followings: followingsCount,
       userInfo: user.role === "talent" ? talentData : user.client
@@ -364,7 +365,7 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, city, languages, hourly_rate, interests } = req.body;
+    const { full_name, gender, age, country, city, languages, hourly_rate, interests ,availability} = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -380,7 +381,9 @@ exports.updateProfile = async (req, res) => {
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     let profile_photo = req.file?.filename ? `${BASE_URL}/uploads/${req.file.filename}` : null;
-
+     await user.update({
+        availability
+      });
     // Update based on role
     if (req.user.role === 'talent') {
       await user.talent.update({
@@ -474,6 +477,7 @@ exports.updateProfile = async (req, res) => {
       notification_alert: userData.notification_alert,
       followers: 0,   // replace with real DB count if needed
       followings: 1,  // replace with real DB count if needed
+      availability: userData.availability,
       userInfo
     };
 
