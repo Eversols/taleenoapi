@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { User, Talent, Client, Follow , Skill,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
+const path = require("path");
+const fs = require("fs");
 
 exports.register = async (req, res) => {
   try {
@@ -394,7 +396,7 @@ exports.updateProfile = async (req, res) => {
         city,
         languages,
         hourly_rate,
-        profile_photo
+        // profile_photo
       });
     } else {
       await user.update({ on_board: 1 });
@@ -405,7 +407,7 @@ exports.updateProfile = async (req, res) => {
         country,
         city,
         interests,
-        profile_photo
+        // profile_photo
       });
     }
 
@@ -675,5 +677,42 @@ exports.blockUser = async (req, res) => {
     );
   }
 };
+exports.uploadProfileImage = async (req, res) => {
+  const BASE_URL = process.env.APP_URL?.replace(/\/$/, "") || "";
+  try {
+    if (!req.file) {
+      return res.status(400).json(sendJson(false, "No image uploaded"));
+    }
+    let profile_photo = req.file?.filename ? `/uploads/${req.file.filename}` : null;
 
+    // ✅ Save into DB
+    const user = await User.findByPk(req.user.id, {
+      include: [
+        { association: req.user.role === "talent" ? "talent" : "client" },
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).json(sendJson(false, "User not found"));
+    }
+
+    if (req.user.role === "talent") {
+      await user.talent.update({ profile_photo });
+    } else {
+      await user.client.update({ profile_photo });
+    }
+
+    
+    const fullurlimg = `${BASE_URL}${profile_photo}`;
+
+    return res
+      .status(200)
+      .json(sendJson(true, "Profile photo updated successfully", { fullurlimg }));
+  } catch (error) {
+    console.error("Profile image upload error:", error);
+    return res
+      .status(500)
+      .json(sendJson(false, "Server error", { error: error.message }));
+  }
+};
 

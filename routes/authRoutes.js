@@ -19,5 +19,6 @@ router.post('/Setnotificationalert', authMiddleware, authController.Setnotificat
 router.get('/me', authMiddleware, authController.getMe);
 router.post('/deleteUser', authMiddleware, authController.deleteUser);
 router.post('/blockUser', authMiddleware, authController.blockUser);
+router.post('/uploadProfileImage', authMiddleware,upload.single('profile_photo'), authController.uploadProfileImage);
 
 module.exports = router;
