@@ -14,5 +14,6 @@ router.get('/bookings-Slots-have-talent', authenticate,bookingController.MyBooki
 router.post('/MyBookingSlotsForClient', authenticate,bookingController.MyBookingSlotsForClient);
 router.post('/bookingsSlotshaveclient', authenticate,bookingController.bookingsSlotshaveclient);
 router.put("/reschedule", authenticate,bookingController.rescheduleBooking);
-
+router.post("/checkout", authenticate,bookingController.createCheckout);
+router.get("/status", authenticate,bookingController.getPaymentStatus);
 module.exports = router;
