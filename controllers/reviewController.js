@@ -1,12 +1,45 @@
-const { Review, User, Booking } = require('../models');
+const { Booking, Talent, Client, User, Review, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 
 exports.createReview = async (req, res) => {
   try {
-    const { reviewed_id, booking_id, rating, comment } = req.body;
+    const { booking_id, rating, comment } = req.body;
     const reviewer_id = req.user.id;
 
     const booking = await Booking.findByPk(booking_id);
+    let reviewed_id = null;
+    if (req?.user?.role === 'client') {
+      // fetch user_id from talent table
+      const [talent] = await sequelize.query(
+        `SELECT u.id AS user_id 
+        FROM talents t 
+        JOIN users u ON u.id = t.user_id 
+        WHERE t.id = :talent_id`,
+        {
+          replacements: { talent_id: booking?.talent_id },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      );
+
+      reviewed_id = talent?.user_id;
+    } else if (req?.user?.role === 'talent') {
+      // fetch user_id from client table
+      const [client] = await sequelize.query(
+        `SELECT u.id AS user_id 
+         FROM clients c 
+         JOIN users u ON u.id = c.user_id 
+         WHERE c.id = :client_id`,
+        {
+          replacements: { client_id: booking?.client_id },
+          type: sequelize.QueryTypes.SELECT,
+        }
+      );
+
+      reviewed_id = client?.user_id;
+    }
+
+
+
     if (!booking) {
       return res.status(404).json({
         success: false,
