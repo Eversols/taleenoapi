@@ -964,9 +964,11 @@ exports.rescheduleBooking = async (req, res) => {
     }
 
     // ✅ Update booking new schedule
-    booking.created_at = new_date;
-    booking.time_slot = new_time;
-    await booking.save();
+    await Booking.update(
+      { created_at: new_date, time_slot: new_time },
+      { where: { id: booking_id } }
+    );
+
 
     return res.status(200).json(
       sendJson(true, "Booking rescheduled successfully", {
