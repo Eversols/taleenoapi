@@ -73,6 +73,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'default.jpg'
     },
+    languages: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: []
+    },
     deleted_at: {
       type: DataTypes.DATE,
       allowNull: true
