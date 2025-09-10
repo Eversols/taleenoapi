@@ -6,16 +6,19 @@ const { Payment } = require("../models");
 const { sendJson } = require('../utils/helpers');
 
 const BookingStatusEnum = [
-  'pending',
-  'accepted',
-  'inProgress',
-  'completed',
-  'reviewPending', // added for pending review state
-  'reviewedAndCompleted',
-  'requestedForRescheduleByUser',
-  'requestedForRescheduleByTalent',
-  'canceledByUser',
-  'canceledByTalent',
+'pending', 
+'accepted',
+'paymentPending',
+'rejected',
+'inProgress',
+'completed',
+'reviewPending',
+'requestedForRescheduleByUser',
+'requestedForRescheduleByTalent',
+'canceledByUser',
+'canceledByTalent',
+'isPaid',
+'confirm'
 ];
 // ✅ Define helper function OUTSIDE the try block
 function parseAvailability(value) {
