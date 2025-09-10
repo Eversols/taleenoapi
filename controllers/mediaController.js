@@ -142,6 +142,75 @@ exports.list = async (req, res) => {
 };
 
 
+exports.updateonlyImg = async (req, res) => {
+  try {
+    const media = await Media.findByPk(req.params.id);
+
+    if (!media) {
+      return res.status(404).json(
+        sendJson(false, 'Media not found')
+      );
+    }
+
+    if (media.userId !== req.user.id) {
+      return res.status(403).json(
+        sendJson(false, 'You are not authorized to update this media')
+      );
+    }
+    if (!req.file) {
+      return res.status(400).json(
+        sendJson(false, 'No file uploaded')
+      );
+    }
+
+    // ✅ Add original extension
+    const ext = path.extname(req.file.originalname);
+    const finalFileName = req.file.filename + ext;
+    const finalPath = path.join(path.dirname(req.file.path), finalFileName);
+
+    // ✅ If file already exists → remove it
+    if (fs.existsSync(finalPath)) {
+      fs.unlinkSync(finalPath);
+    }
+
+    // ✅ Rename uploaded file to include extension
+    fs.renameSync(req.file.path, finalPath);
+
+    const fileUrl = `/uploads/${finalFileName}`;
+
+    await media.update({
+      fileUrl,
+      type: req.file.mimetype.includes('video') ? 'video' : 'image',
+    });
+    let skill = null;
+    if (req.body.skill_id) {
+      skill = await Skill.findByPk(req.body.skill_id, {
+        attributes: ['id', 'name']
+      });
+    }
+    return res.status(200).json(
+      sendJson(true, 'Media updated successfully', {
+        media: {
+          id: media.id,
+          title: media.title,
+          description: media.description,
+          fileUrl: media.fileUrl,
+          type: media.type,
+          skill: skill || null,  // Returns null if no skill found
+          visibility: media.visibility,
+          createdAt: media.createdAt
+        }
+      })
+    );
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to update media', {
+        error: error.message
+      })
+    );
+  }
+};
+
 exports.update = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);

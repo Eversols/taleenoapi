@@ -9,6 +9,7 @@ router.use(auth);
 router.post('/upload', upload.single('file'), mediaController.upload);
 router.get('/', mediaController.list);
 router.put('/:id', upload.single('file'), mediaController.update);
+router.put('/upload:id', upload.single('file'), mediaController.updateonlyImg);
 router.delete('/:id', mediaController.remove);
 router.post('/:id/like', mediaController.like);
 router.post('/:id/share', mediaController.share);
