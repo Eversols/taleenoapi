@@ -407,6 +407,7 @@ exports.updateProfile = async (req, res) => {
         country,
         city,
         interests,
+        languages,
         // profile_photo
       });
     }
