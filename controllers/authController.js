@@ -716,3 +716,89 @@ exports.uploadProfileImage = async (req, res) => {
   }
 };
 
+// DELETE /api/talent/skills/:id
+exports.deleteSkill = async (req, res) => {
+  try {
+    const skillId = parseInt(req.params.id);
+
+    const talent = await Talent.findOne({ where: { user_id: req.user.id } });
+
+    if (!talent) {
+      return res.status(404).json(sendJson(false, "Talent not found"));
+    }
+
+    // Parse skills
+    let skills = [];
+    if (Array.isArray(talent.skills)) {
+      skills = talent.skills;
+    } else if (typeof talent.skills === "string") {
+      try {
+        skills = JSON.parse(talent.skills);
+      } catch (e) {
+        skills = [];
+      }
+    }
+
+    // Filter skill by ID
+    const updatedSkills = skills.filter(s => parseInt(s.id) !== skillId);
+
+    // Save back
+    await talent.update({ skills: updatedSkills });
+
+    return res.status(200).json(
+      sendJson(true, "Skill deleted successfully", { skills: updatedSkills })
+    );
+  } catch (error) {
+    console.error("Delete skill error:", error);
+    return res.status(500).json(
+      sendJson(false, "Failed to delete skill", { error: error.message })
+    );
+  }
+};
+// DELETE /api/client/interests/:id
+exports.deleteInterest = async (req, res) => {
+  try {
+    const interestId = parseInt(req.params.id);
+
+    const client = await Client.findOne({ where: { user_id: req.user.id } });
+
+    if (!client) {
+      return res.status(404).json(sendJson(false, "Client not found"));
+    }
+
+    let interests = [];
+
+    if (Array.isArray(client.interests)) {
+      // Example: ["17,18"]
+      interests = client.interests
+        .map(i => i.toString().split(",")) // split "17,18" → ["17","18"]
+        .flat()
+        .map(i => parseInt(i))
+        .filter(i => !isNaN(i));
+    } else if (typeof client.interests === "string") {
+      // Example: "17,18"
+      interests = client.interests
+        .split(",")
+        .map(i => parseInt(i))
+        .filter(i => !isNaN(i));
+    }
+
+    // Remove the one we want
+    const updatedInterests = interests.filter(i => i !== interestId);
+
+    // Save back in same format (string array with comma-separated values)
+    const saveFormat = [updatedInterests.join(",")];
+
+    await client.update({ interests: saveFormat });
+
+    return res.status(200).json(
+      sendJson(true, "Interest deleted successfully", { interests: saveFormat })
+    );
+  } catch (error) {
+    console.error("Delete interest error:", error);
+    return res.status(500).json(
+      sendJson(false, "Failed to delete interest", { error: error.message })
+    );
+  }
+};
+
