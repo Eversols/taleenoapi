@@ -683,7 +683,21 @@ exports.uploadProfileImage = async (req, res) => {
     if (!req.file) {
       return res.status(400).json(sendJson(false, "No image uploaded"));
     }
-    let profile_photo = req.file?.filename ? `/uploads/${req.file.filename}` : null;
+
+    // ✅ Add original extension to the uploaded file
+    const ext = path.extname(req.file.originalname);
+    const finalFileName = req.file.filename + ext;
+    const finalPath = path.join(path.dirname(req.file.path), finalFileName);
+
+    // ✅ If file already exists → remove it
+    if (fs.existsSync(finalPath)) {
+      fs.unlinkSync(finalPath);
+    }
+
+    // ✅ Rename uploaded file to include extension
+    fs.renameSync(req.file.path, finalPath);
+
+    let profile_photo = `/uploads/${finalFileName}`;
 
     // ✅ Save into DB
     const user = await User.findByPk(req.user.id, {
@@ -693,6 +707,12 @@ exports.uploadProfileImage = async (req, res) => {
     });
 
     if (!user) {
+      // Clean up uploaded file if user not found
+      try {
+        fs.unlinkSync(finalPath);
+      } catch (err) {
+        console.warn("Cleanup failed:", err.message);
+      }
       return res.status(404).json(sendJson(false, "User not found"));
     }
 
@@ -709,6 +729,16 @@ exports.uploadProfileImage = async (req, res) => {
       .status(200)
       .json(sendJson(true, "Profile photo updated successfully", { fullurlimg }));
   } catch (error) {
+    // Clean up uploaded file if error occurs
+    if (req.file) {
+      try {
+        const ext = path.extname(req.file.originalname);
+        const finalPath = path.join(path.dirname(req.file.path), req.file.filename + ext);
+        fs.unlinkSync(finalPath);
+      } catch (err) {
+        console.warn("Cleanup failed:", err.message);
+      }
+    }
     console.error("Profile image upload error:", error);
     return res
       .status(500)
