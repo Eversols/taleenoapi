@@ -157,6 +157,7 @@ exports.verifyOTP = async (req, res) => {
     }
 
     // response
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const userData = {
       token,
       id: user.id,
@@ -170,7 +171,19 @@ exports.verifyOTP = async (req, res) => {
       availability: user.availability,
       followers: followersCount,
       followings: followingsCount,
-      userInfo: user.role === "talent" ? talentData : user.client
+      userInfo: user.role === "talent" 
+        ? {
+            ...talentData,
+            profile_photo: talentData?.profile_photo 
+              ? `${BASE_URL}${talentData.profile_photo}`
+              : null
+          }
+        : {
+            ...user.client,
+            profile_photo: user.client?.profile_photo 
+              ? `${BASE_URL}${user.client.profile_photo}`
+              : null
+          }
     };
 
     return res.status(201).json({
