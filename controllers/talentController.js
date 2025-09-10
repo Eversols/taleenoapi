@@ -316,26 +316,7 @@ exports.addToWishlist = async (req, res) => {
 exports.getWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
-    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
-
-    // const rows = await sequelize.query(`
-    //   SELECT 
-    //     w.id AS wishlist_id,
-    //     t.id AS talent_id,
-    //     t.skills as skills,
-    //     u.id AS user_id,
-    //     u.username,
-    //     t.profile_photo
-    //   FROM Wishlists w
-    //   INNER JOIN talents t ON t.id = w.talent_id
-    //   INNER JOIN users u ON u.id = t.user_id
-    //   WHERE w.user_id = :userId
-    //   GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
-    //   ORDER BY w.id DESC
-    // `, {
-    //   replacements: { userId },
-    //   type: sequelize.QueryTypes.SELECT
-    // });
+    
     const rows = await sequelize.query(`
   SELECT 
     w.id AS wishlist_id,
@@ -369,19 +350,27 @@ exports.getWishlist = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
-    const formattedWishlist = rows.map(row => ({
-      id: row.wishlist_id,
-      talent: {
-        id: row.talent_id,
-        userId: row.user_id,
-        username: row.username,
-        skills: row.skills,
-        profile_photo: row.profile_photo
-          ? `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
-          : null,
+    const formattedWishlist = rows.map(row => {
+      let profile_photo = null;
+
+      if (row.profile_photo) {
+        // Normalize path: remove leading slash if exists
+        profile_photo = `${BASE_URL}${row.profile_photo.replace(/^\/?uploads\//, '')}`;
       }
-    }));
+
+      return {
+        id: row.wishlist_id,
+        talent: {
+          id: row.talent_id,
+          userId: row.user_id,
+          username: row.username,
+          skills: row.skills,
+          profile_photo
+        }
+      };
+    });
 
     return res.status(200).json(
       sendJson(true, 'Wishlist retrieved successfully', {

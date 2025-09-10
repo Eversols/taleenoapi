@@ -155,9 +155,8 @@ exports.verifyOTP = async (req, res) => {
         }))
       };
     }
-
+const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     // response
-    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const userData = {
       token,
       id: user.id,
@@ -171,19 +170,22 @@ exports.verifyOTP = async (req, res) => {
       availability: user.availability,
       followers: followersCount,
       followings: followingsCount,
-      userInfo: user.role === "talent" 
-        ? {
-            ...talentData,
-            profile_photo: talentData?.profile_photo 
-              ? `${BASE_URL}${talentData.profile_photo}`
-              : null
-          }
-        : {
-            ...user.client,
-            profile_photo: user.client?.profile_photo 
-              ? `${BASE_URL}${user.client.profile_photo}`
-              : null
-          }
+      userInfo: user.role === "talent"
+  ? {
+      ...talentData.toJSON(),
+      profile_photo: talentData?.profile_photo
+        ? `${BASE_URL}${talentData.profile_photo}`
+        : null
+    }
+  : user.client
+    ? {
+        ...user.client.toJSON(), // ✅ convert Sequelize instance → plain object
+        profile_photo: user.client.profile_photo
+          ? `${BASE_URL}${user.client.profile_photo}`
+          : null
+      }
+    : null
+
     };
 
     return res.status(201).json({
