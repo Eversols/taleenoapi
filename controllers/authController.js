@@ -402,6 +402,28 @@ exports.updateProfile = async (req, res) => {
         availability
       });
     // Update based on role
+        // Parse languages properly
+    let parsedLanguages = [];
+
+    if (Array.isArray(languages)) {
+      // Case: ["1,2"] OR ["1","2"]
+      parsedLanguages = languages
+        .map(v => v.toString().split(",")) // split comma-separated values
+        .flat()
+        .map(v => v.trim())
+        .filter(v => v !== "")
+        .map(Number)
+        .filter(v => !isNaN(v));
+    } else if (typeof languages === "string") {
+      // Case: "1,2"
+      parsedLanguages = languages
+        .split(",")
+        .map(v => v.trim())
+        .filter(v => v !== "")
+        .map(Number);
+    }
+
+
     if (req.user.role === 'talent') {
       await user.talent.update({
         full_name,
@@ -409,7 +431,7 @@ exports.updateProfile = async (req, res) => {
         age,
         country,
         city,
-        languages,
+        languages:parsedLanguages,
         hourly_rate,
         // profile_photo
       });
@@ -422,7 +444,7 @@ exports.updateProfile = async (req, res) => {
         country,
         city,
         interests,
-        languages,
+         languages:parsedLanguages,
         // profile_photo
       });
     }
