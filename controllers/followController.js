@@ -44,7 +44,7 @@ exports.getFollowing = async (req, res) => {
       // Handle profile photo (DB field or uploaded media file)
       let profile_photo = null;
       if (f.following?.talent?.profile_photo) {
-        profile_photo = `${BASE_URL}/uploads${f.following.talent.profile_photo}`;
+        profile_photo = `${BASE_URL}${f.following.talent.profile_photo}`;
       } else if (f.following?.talent?.media?.fileUrl) {
         profile_photo = `${BASE_URL}${f.following.talent.media.fileUrl}`;
       }
@@ -118,7 +118,7 @@ exports.getFollowers = async (req, res) => {
       // Handle profile photo
       let profile_photo = null;
       if (f.follower?.talent?.profile_photo) {
-        profile_photo = `${BASE_URL}/uploads${f.follower.talent.profile_photo}`;
+        profile_photo = `${BASE_URL}${f.follower.talent.profile_photo}`;
       } else if (f.follower?.talent?.media?.fileUrl) {
         // if you saved file separately in Media table
         profile_photo = `${BASE_URL}${f.follower.talent.media.fileUrl}`;
