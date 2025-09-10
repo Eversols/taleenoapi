@@ -38,18 +38,24 @@ exports.getFollowing = async (req, res) => {
         ? skillIds.map(id => skillMap[id]).filter(Boolean)
         : [];
 
+      // Base URL without trailing slash
       const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
-      const profile_photo = f.following?.talent?.profile_photo
-        ? `${BASE_URL}/uploads/${f.following?.talent?.profile_photo}`
-        : null;
+      // Handle profile photo (DB field or uploaded media file)
+      let profile_photo = null;
+      if (f.following?.talent?.profile_photo) {
+        profile_photo = `${BASE_URL}/uploads${f.following.talent.profile_photo}`;
+      } else if (f.following?.talent?.media?.fileUrl) {
+        profile_photo = `${BASE_URL}${f.following.talent.media.fileUrl}`;
+      }
+
       return {
         id: f.id,
         createdAt: f.createdAt,
         user: {
           id: f.following?.id,
           username: f.following?.username,
-          profile_photo: profile_photo,
+          profile_photo,
           skills: skillNames
         }
       };
@@ -103,22 +109,28 @@ exports.getFollowers = async (req, res) => {
     });
 
     const formattedFollowers = followers.map(f => {
-      const skillIds = f.follower?.talent?.skills || [];  // Changed from following to follower
+      const skillIds = f.follower?.talent?.skills || [];
       const skillNames = Array.isArray(skillIds)
         ? skillIds.map(id => skillMap[id]).filter(Boolean)
         : [];
       const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
-      const profile_photo = f.follower?.talent?.profile_photo
-        ? `${BASE_URL}/uploads/${f.follower.talent.profile_photo}`
-        : null;
+      // Handle profile photo
+      let profile_photo = null;
+      if (f.follower?.talent?.profile_photo) {
+        profile_photo = `${BASE_URL}/uploads${f.follower.talent.profile_photo}`;
+      } else if (f.follower?.talent?.media?.fileUrl) {
+        // if you saved file separately in Media table
+        profile_photo = `${BASE_URL}${f.follower.talent.media.fileUrl}`;
+      }
+
       return {
         id: f.id,
         createdAt: f.createdAt,
         user: {
-          id: f.follower?.id,  // Changed from following to follower
+          id: f.follower?.id,
           username: f.follower?.username,
-          profile_photo: profile_photo,
+          profile_photo,
           skills: skillNames
         }
       };
