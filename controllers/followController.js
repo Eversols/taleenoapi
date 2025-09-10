@@ -38,13 +38,18 @@ exports.getFollowing = async (req, res) => {
         ? skillIds.map(id => skillMap[id]).filter(Boolean)
         : [];
 
+      const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+      const profile_photo = f.following?.talent?.profile_photo
+        ? `${BASE_URL}/uploads/${f.following?.talent?.profile_photo}`
+        : null;
       return {
         id: f.id,
         createdAt: f.createdAt,
         user: {
           id: f.following?.id,
           username: f.following?.username,
-          profile_photo: f.following?.talent?.profile_photo ?? null,
+          profile_photo: profile_photo,
           skills: skillNames
         }
       };
@@ -102,14 +107,18 @@ exports.getFollowers = async (req, res) => {
       const skillNames = Array.isArray(skillIds)
         ? skillIds.map(id => skillMap[id]).filter(Boolean)
         : [];
+      const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
+      const profile_photo = f.follower?.talent?.profile_photo
+        ? `${BASE_URL}/uploads/${f.follower.talent.profile_photo}`
+        : null;
       return {
         id: f.id,
         createdAt: f.createdAt,
         user: {
           id: f.follower?.id,  // Changed from following to follower
           username: f.follower?.username,
-          profile_photo: f.follower?.talent?.profile_photo ?? null,
+          profile_photo: profile_photo,
           skills: skillNames
         }
       };
