@@ -521,7 +521,6 @@ exports.updateTalentDetails = async (req, res) => {
 
     // Prepare update data
     const updateData = {};
-    if (skills) updateData.skills = skills;
     if (experience_level) updateData.experience_level = experience_level;
     if (availability) updateData.availability = JSON.stringify(availability);
 
@@ -532,7 +531,7 @@ exports.updateTalentDetails = async (req, res) => {
 
     // Fetch updated talent data
     const updatedTalent = await Talent.findByPk(user.talent.id, {
-      attributes: ['id', 'skills', 'experience_level', 'availability'],
+      attributes: ['id', 'experience_level', 'availability'],
       include: [{
         model: User,
         as: 'user',
