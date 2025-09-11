@@ -323,20 +323,29 @@ exports.getWishlist = async (req, res) => {
         t.id AS talent_id,
         u.id AS user_id,
         u.username,
-        t.profile_photo
+        t.profile_photo,
+        t.skills AS talent_skills
       FROM Wishlists w
       LEFT JOIN talents t ON t.id = w.talent_id
       LEFT JOIN users u ON u.id = t.user_id
       WHERE w.user_id = :userId
-      GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
+      GROUP BY w.id, t.id, u.id, u.username, t.profile_photo, t.skills
       ORDER BY w.id DESC
     `, {
       replacements: { userId },
       type: sequelize.QueryTypes.SELECT
     });
 
+    // 2️⃣ Load all skills once into a map { id: name }
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
+    // 3️⃣ Format wishlist with skills mapped
     const formattedWishlist = rows.map(row => {
       let profile_photo = null;
 
@@ -345,13 +354,27 @@ exports.getWishlist = async (req, res) => {
         profile_photo = `${BASE_URL}/${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
       }
 
+      // Parse talent.skills JSON safely
+      let parsedSkills = [];
+      try {
+        const skillsArray = row.talent_skills ? JSON.parse(row.talent_skills) : [];
+        parsedSkills = Array.isArray(skillsArray)
+          ? skillsArray.map(s => ({
+              id: s.id,
+              name: skillsMap[s.id] || null,
+              rate: s.rate
+            }))
+          : [];
+      } catch (e) {
+        parsedSkills = [];
+      }
+
       return {
         id: row.wishlist_id,
         talent: {
           id: row.talent_id,
           userId: row.user_id,
           username: row.username,
-          skills: [], // skills not joined here, return empty array
           profile_photo
         }
       };
