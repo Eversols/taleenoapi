@@ -316,36 +316,21 @@ exports.addToWishlist = async (req, res) => {
 exports.getWishlist = async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
     const rows = await sequelize.query(`
-  SELECT 
-    w.id AS wishlist_id,
-    t.id AS talent_id,
-    u.id AS user_id,
-    u.username,
-    t.profile_photo,
-    JSON_ARRAYAGG(
-      JSON_OBJECT(
-        'id', s.id,
-        'name', s.name,
-        'rate', jt.rate
-      )
-    ) AS skills
-  FROM Wishlists w
-  INNER JOIN talents t ON t.id = w.talent_id
-  INNER JOIN users u ON u.id = t.user_id
-  JOIN JSON_TABLE(
-    t.skills, 
-    '$[*]' COLUMNS(
-      skill_id INT PATH '$.id',
-      rate VARCHAR(10) PATH '$.rate'
-    )
-  ) jt ON jt.skill_id IS NOT NULL
-  LEFT JOIN skills s ON s.id = jt.skill_id
-  WHERE w.user_id = :userId
-  GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
-  ORDER BY w.id DESC
-`, {
+      SELECT 
+        w.id AS wishlist_id,
+        t.id AS talent_id,
+        u.id AS user_id,
+        u.username,
+        t.profile_photo
+      FROM Wishlists w
+      LEFT JOIN talents t ON t.id = w.talent_id
+      LEFT JOIN users u ON u.id = t.user_id
+      WHERE w.user_id = :userId
+      GROUP BY w.id, t.id, u.id, u.username, t.profile_photo
+      ORDER BY w.id DESC
+    `, {
       replacements: { userId },
       type: sequelize.QueryTypes.SELECT
     });
@@ -356,8 +341,8 @@ exports.getWishlist = async (req, res) => {
       let profile_photo = null;
 
       if (row.profile_photo) {
-        // Normalize path: remove leading slash if exists
-        profile_photo = `${BASE_URL}${row.profile_photo.replace(/^\/?uploads\//, '')}`;
+        // Ensure uploads/ path is normalized and prefixed with BASE_URL
+        profile_photo = `${BASE_URL}/${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
       }
 
       return {
@@ -366,7 +351,7 @@ exports.getWishlist = async (req, res) => {
           id: row.talent_id,
           userId: row.user_id,
           username: row.username,
-          skills: row.skills,
+          skills: [], // skills not joined here, return empty array
           profile_photo
         }
       };
@@ -387,6 +372,7 @@ exports.getWishlist = async (req, res) => {
     );
   }
 };
+
 
 
 
