@@ -71,7 +71,7 @@ exports.getFeed = async (req, res) => {
                 WHERE b.talent_id = talent.id
               )`),
               'bookings_count'
-]
+            ]
           ]
         }
       ]
@@ -88,7 +88,6 @@ exports.getFeed = async (req, res) => {
         if (staticSkillRates.length === 0) continue;
       }
 
-      
       if (price_range) {
         const [minPrice, maxPrice] = price_range.split('-').map(Number);
         staticSkillRates = staticSkillRates.filter(sr => {
@@ -130,6 +129,8 @@ exports.getFeed = async (req, res) => {
         likes_count: user.talent?.getDataValue('likes_count') || 0,
         unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
         reaction: user.talent?.getDataValue('reaction') || null,
+        is_liked: user.talent?.getDataValue('reaction') === 'like',
+        is_unliked: user.talent?.getDataValue('reaction') === 'unlike',
         rating: user.rating || 5.0,
         skills: skillsWithRate,
         views: user.views || 0
