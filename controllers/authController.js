@@ -172,7 +172,7 @@ const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
       followings: followingsCount,
       userInfo: user.role === "talent"
   ? {
-      ...talentData.toJSON(),
+      ...talentData,
       profile_photo: talentData?.profile_photo
         ? `${BASE_URL}${talentData.profile_photo}`
         : null
