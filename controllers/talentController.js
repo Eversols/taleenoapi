@@ -324,7 +324,14 @@ exports.getWishlist = async (req, res) => {
         u.id AS user_id,
         u.username,
         t.profile_photo,
-        t.skills AS talent_skills
+        t.skills AS talent_skills,
+        (
+          SELECT type 
+          FROM likes l 
+          WHERE l.talent_id = t.id 
+            AND l.user_id = :userId
+          LIMIT 1
+        ) AS reaction
       FROM Wishlists w
       LEFT JOIN talents t ON t.id = w.talent_id
       LEFT JOIN users u ON u.id = t.user_id
@@ -368,6 +375,10 @@ exports.getWishlist = async (req, res) => {
       } catch (e) {
         parsedSkills = [];
       }
+      // Generalized like field
+      let like = null;
+      if (row.reaction === 'like') like = true;
+      else if (row.reaction === 'unlike') like = false;
 
       return {
         id: row.wishlist_id,
@@ -375,7 +386,12 @@ exports.getWishlist = async (req, res) => {
           id: row.talent_id,
           userId: row.user_id,
           username: row.username,
-          profile_photo
+          profile_photo,
+          skills: parsedSkills,
+          reaction: row.reaction || null,
+          // liked: row.reaction === 'like',
+          // unliked: row.reaction === 'unlike',
+          like
         }
       };
     });
