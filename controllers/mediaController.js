@@ -10,7 +10,14 @@ exports.upload = async (req, res) => {
         sendJson(false, 'No file uploaded')
       );
     }
+    const { type } = req.body;
 
+    // Validate at least one update parameter exists
+    if (!type) {
+      return res.status(400).json(
+        sendJson(false, 'Either a type must be provided for file')
+      );
+    }
     // ✅ Add original extension
     const ext = path.extname(req.file.originalname);
     const finalFileName = req.file.filename + ext;
@@ -32,7 +39,7 @@ exports.upload = async (req, res) => {
       title: req.body.title,
       description: req.body.description,
       fileUrl,
-      type: req.file.mimetype.includes('video') ? 'video' : 'image',
+      type: type,
       visibility: req.body.visibility === '1' ? true : false
     });
     let skill = null;
@@ -215,6 +222,15 @@ exports.update = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
 
+    const { type } = req.body;
+
+    // Validate at least one update parameter exists
+    if (!type) {
+      return res.status(400).json(
+        sendJson(false, 'Either a type must be provided for file')
+      );
+    }
+
     if (!media) {
       return res.status(404).json(
         sendJson(false, 'Media not found')
@@ -252,7 +268,7 @@ exports.update = async (req, res) => {
       title: req.body.title,
       description: req.body.description,
       fileUrl,
-      type: req.file.mimetype.includes('video') ? 'video' : 'image',
+      type: type,
       visibility: req.body.visibility === '1' ? true : false
     });
     let skill = null;
