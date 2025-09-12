@@ -382,7 +382,7 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, city, languages, hourly_rate, interests ,availability} = req.body;
+    const { full_name, gender, age, country, city, languages, hourly_rate, interests ,availability,skills} = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -433,6 +433,7 @@ exports.updateProfile = async (req, res) => {
         city,
         languages:parsedLanguages,
         hourly_rate,
+        skills
         // profile_photo
       });
     } else {
