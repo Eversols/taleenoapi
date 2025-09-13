@@ -1121,12 +1121,8 @@ exports.getPaymentStatus = async (req, res) => {
   try {
     const { checkoutId } = req.query;
 
-    if (!checkoutId) {
-      return res.status(400).json(sendJson(false, "CheckoutId are required"));
-    }
-
     const response = await axios.get(
-      `https://eu-test.oppwa.com?entityId=8ac7a4c79483092601948366b9d1011b`,
+      `https://eu-test.oppwa.com/v1/checkouts/${checkoutId}/payment?entityId=8ac7a4c79483092601948366b9d1011b`,
       {
         headers: {
           Authorization:
@@ -1135,32 +1131,19 @@ exports.getPaymentStatus = async (req, res) => {
       }
     );
 
-    const result = response.data;
-
-    // ✅ Update payment record
-    const payment = await Payment.findOne({ where: { checkout_id: checkoutId } });
-    if (payment) {
-      await payment.update({
-        status: result.result?.code === "000.100.110" ? "SUCCESS" : "FAILED",
-        brand: result.paymentBrand || null,
-        result_code: result.result?.code || null,
-        result_description: result.result?.description || null
-      });
-    }
+    const result = response.data; // ✅ only safe JSON data
 
     return res.status(200).json(
-      sendJson(true, "Payment status retrieved", {
-        id: payment?.id,
-        status: payment?.status,
+      sendJson(
+        true,
+        "Payment status retrieved",
         result
-      })
+      )
     );
   } catch (error) {
-    console.error("HyperPay Status Error:", error.response?.data || error.message);
+    console.error("Payment Status Error:", error.message);
     return res.status(500).json(
-      sendJson(false, "Failed to fetch payment status", {
-        error: error.response?.data || error.message
-      })
+      sendJson(false, "Failed to fetch payment status", { error: error.message })
     );
   }
 };
