@@ -81,6 +81,14 @@ exports.getFeed = async (req, res) => {
                   ${req.user ? `AND w.user_id = ${req.user.id}` : ``}
               )`),
               'is_wishlisted'
+            ],
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*) 
+                FROM Wishlists w
+                WHERE w.talent_id = talent.id
+              )`),
+              'wishlist_count'
             ]
           ]
         }
@@ -174,7 +182,8 @@ exports.getFeed = async (req, res) => {
         skills: skillsWithRate,
         views: user.views || 0,
         // ✅ return wishlist status
-        is_wishlisted: !!user.talent?.getDataValue('is_wishlisted')
+        is_wishlisted: !!user.talent?.getDataValue('is_wishlisted'),
+        wishlist_count: user.talent?.getDataValue('wishlist_count') || 0,
       });
     }
 
