@@ -1119,31 +1119,45 @@ exports.createCheckout = async (req, res) => {
 
 exports.getPaymentStatus = async (req, res) => {
   try {
-    const { checkoutId } = req.query;
+    const { checkoutId, booking_id } = req.query;
 
+    // Call HyperPay to get payment status
     const response = await axios.get(
       `https://eu-test.oppwa.com/v1/checkouts/${checkoutId}/payment?entityId=8ac7a4c79483092601948366b9d1011b`,
       {
         headers: {
           Authorization:
-            "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo="
-        }
+            "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo=",
+        },
       }
     );
 
     const result = response.data; // ✅ only safe JSON data
+    let booking = null;
+
+    // If booking exists, update its status based on payment result
+    if (booking_id) {
+      booking = await Booking.findByPk(booking_id);
+      if (!booking) {
+        return res.status(404).json(sendJson(false, "Booking not found"));
+      }
+
+      // ✅ Check HyperPay result.code for success
+      if (result.result && result.result.code && result.result.code.startsWith("000.")) {
+        await booking.update({ status: "isPaid" });
+      }
+    }
 
     return res.status(200).json(
-      sendJson(
-        true,
-        "Payment status retrieved",
-        result
-      )
+      sendJson(true, "Payment status retrieved", {
+        paymentResult: result,
+        booking: booking ? booking.toJSON() : null,
+      })
     );
   } catch (error) {
     console.error("Payment Status Error:", error.message);
-    return res.status(500).json(
-      sendJson(false, "Failed to fetch payment status", { error: error.message })
-    );
+    return res
+      .status(500)
+      .json(sendJson(false, "Failed to fetch payment status", { error: error.message }));
   }
 };
