@@ -1161,3 +1161,60 @@ exports.getPaymentStatus = async (req, res) => {
       .json(sendJson(false, "Failed to fetch payment status", { error: error.message }));
   }
 };
+exports.TalentAvailability = async (req, res) => {
+  try {
+    const { bookingdates, talent_id } = req.body; // expect array in body
+
+    if (!bookingdates || !Array.isArray(bookingdates) || bookingdates.length === 0) {
+      return res.status(400).json(
+        sendJson(false, 'bookingdates array is required')
+      );
+    }
+
+    if (!talent_id) {
+      return res.status(400).json(
+        sendJson(false, 'talent_id is required')
+      );
+    }
+
+    const [results] = await sequelize.query(`
+      SELECT 
+        bs.slot_date AS booking_date,
+        bs.slot AS booking_time
+      FROM booking_slots bs
+      JOIN bookings b ON bs.booking_id = b.id
+      JOIN talents t ON b.talent_id = t.id
+      WHERE bs.slot_date IN (:bookingdates)
+      AND b.talent_id = :talent_id
+      ORDER BY bs.slot_date ASC, bs.slot ASC
+    `, {
+      replacements: { bookingdates, talent_id }
+    });
+
+    // Group by booking_date
+    const grouped = results.reduce((acc, row) => {
+      const date = row.booking_date;
+      if (!acc[date]) {
+        acc[date] = {
+          booking_date: date,
+          slots: []
+        };
+      }
+      acc[date].slots.push({
+        booking_time: row.booking_time
+      });
+      return acc;
+    }, {});
+
+    const bookings = Object.values(grouped);
+
+    return res.status(200).json(
+      sendJson(true, 'Filtered bookings retrieved successfully', { bookings })
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch filtered bookings', { error: error.message })
+    );
+  }
+};

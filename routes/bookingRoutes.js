@@ -15,5 +15,6 @@ router.post('/MyBookingSlotsForClient', authenticate,bookingController.MyBooking
 router.post('/bookingsSlotshaveclient', authenticate,bookingController.bookingsSlotshaveclient);
 router.put("/reschedule", authenticate,bookingController.rescheduleBooking);
 router.post("/checkout", authenticate,bookingController.createCheckout);
+router.post("/TalentAvailability", authenticate,bookingController.TalentAvailability);
 router.get("/status", authenticate,bookingController.getPaymentStatus);
 module.exports = router;
