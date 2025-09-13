@@ -1163,58 +1163,81 @@ exports.getPaymentStatus = async (req, res) => {
 };
 exports.TalentAvailability = async (req, res) => {
   try {
-    const { bookingdates, talent_id } = req.body; // expect array in body
+    const { bookingdates, talent_id } = req.body;
 
     if (!bookingdates || !Array.isArray(bookingdates) || bookingdates.length === 0) {
-      return res.status(400).json(
-        sendJson(false, 'bookingdates array is required')
-      );
+      return res.status(400).json({ status: false, message: 'bookingdates array is required', data: {} });
     }
 
     if (!talent_id) {
-      return res.status(400).json(
-        sendJson(false, 'talent_id is required')
-      );
+      return res.status(400).json({ status: false, message: 'talent_id is required', data: {} });
     }
 
-    const [results] = await sequelize.query(`
+    // Fetch booked slots
+    const [bookedSlots] = await sequelize.query(`
       SELECT 
         bs.slot_date AS booking_date,
         bs.slot AS booking_time
       FROM booking_slots bs
       JOIN bookings b ON bs.booking_id = b.id
-      JOIN talents t ON b.talent_id = t.id
       WHERE bs.slot_date IN (:bookingdates)
       AND b.talent_id = :talent_id
       ORDER BY bs.slot_date ASC, bs.slot ASC
-    `, {
-      replacements: { bookingdates, talent_id }
+    `, { replacements: { bookingdates, talent_id } });
+
+    // Fetch talent availability
+    const [talentResult] = await sequelize.query(`
+      SELECT availability
+      FROM talents
+      WHERE id = :talent_id
+      LIMIT 1
+    `, { replacements: { talent_id } });
+
+    const weeklyAvailability = talentResult[0] && talentResult[0].availability
+      ? JSON.parse(talentResult[0].availability)
+      : {};
+
+    const weekdayMap = {
+      0: 'Sunday',
+      1: 'Monday',
+      2: 'Tuesday',
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday'
+    };
+
+    // Build response per date
+    const data = bookingdates.map(dateStr => {
+      const weekday = weekdayMap[new Date(dateStr).getDay()];
+
+      // Get booked slots for this date
+      const booked_slots = bookedSlots
+        .filter(s => s.booking_date === dateStr)
+        .map(s => ({ booking_time: s.booking_time }));
+
+      // Get talent slots for this date
+      const talent_slots = (weeklyAvailability[weekday] || []).map(slot => ({ booking_time: slot }));
+
+      return {
+        date: dateStr,
+        booked_slots,
+        talent_slots
+      };
     });
 
-    // Group by booking_date
-    const grouped = results.reduce((acc, row) => {
-      const date = row.booking_date;
-      if (!acc[date]) {
-        acc[date] = {
-          booking_date: date,
-          slots: []
-        };
-      }
-      acc[date].slots.push({
-        booking_time: row.booking_time
-      });
-      return acc;
-    }, {});
-
-    const bookings = Object.values(grouped);
-
-    return res.status(200).json(
-      sendJson(true, 'Filtered bookings retrieved successfully', { bookings })
-    );
+    return res.status(200).json({
+      status: true,
+      message: 'Filtered bookings and talent availability retrieved successfully',
+      data
+    });
 
   } catch (error) {
-    return res.status(500).json(
-      sendJson(false, 'Failed to fetch filtered bookings', { error: error.message })
-    );
+    return res.status(500).json({
+      status: false,
+      message: 'Failed to fetch filtered bookings',
+      data: { error: error.message }
+    });
   }
 };
+
