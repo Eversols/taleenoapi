@@ -111,6 +111,11 @@ exports.getFeed = async (req, res) => {
       // Group media by skill_id
       const mediaBySkillId = {};
       allMedia.forEach(media => {
+        // Only prepend BASE_URL if fileUrl exists and doesn't already start with http
+        if (media.fileUrl && !media.fileUrl.startsWith('http')) {
+          media.fileUrl = `${BASE_URL}${media.fileUrl}`;
+        }
+        
         if (!mediaBySkillId[media.skill_id]) {
           mediaBySkillId[media.skill_id] = [];
         }
