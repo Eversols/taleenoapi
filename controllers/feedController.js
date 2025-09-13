@@ -71,6 +71,16 @@ exports.getFeed = async (req, res) => {
                 WHERE b.talent_id = talent.id
               )`),
               'bookings_count'
+            ],
+            // ✅ Wishlist check
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*) 
+                FROM Wishlists w
+                WHERE w.talent_id = talent.id
+                  ${req.user ? `AND w.user_id = ${req.user.id}` : ``}
+              )`),
+              'is_wishlisted'
             ]
           ]
         }
@@ -162,7 +172,9 @@ exports.getFeed = async (req, res) => {
         is_unliked: user.talent?.getDataValue('reaction') === 'unlike',
         rating: user.rating || 5.0,
         skills: skillsWithRate,
-        views: user.views || 0
+        views: user.views || 0,
+        // ✅ return wishlist status
+        is_wishlisted: !!user.talent?.getDataValue('is_wishlisted')
       });
     }
 
