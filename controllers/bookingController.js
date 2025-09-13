@@ -595,6 +595,7 @@ exports.ByDateBookings = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const searchDate = req.query.date || null;
+    const searchDates = req.body?.bookingdates || null; // allow multiple dates
 
     // Assume req.user.role is either "talent" or "client"
     const userRole = req.user?.role;
@@ -606,8 +607,10 @@ exports.ByDateBookings = async (req, res) => {
     }
 
     let whereClause = '';
-    if (searchDate) {
-      whereClause = `WHERE DATE(b.created_at) = :searchDate`;
+    if (searchDates && searchDates.length) {
+      whereClause = `WHERE bs.slot_date IN (:searchDates)`;
+    } else if (searchDate) {
+      whereClause = `WHERE bs.slot_date = :searchDate`;
     }
 
     // Decide what to select depending on role
@@ -635,18 +638,19 @@ exports.ByDateBookings = async (req, res) => {
         b.id AS booking_id,
         b.note AS description,
         b.status AS status,
-        DATE(b.created_at) AS booking_date,
-        b.time_slot AS booking_time,
+        bs.slot_date AS booking_date,
+        bs.slot AS booking_time,
         r.rating,
         ${selectFields}
-      FROM bookings b
+      FROM booking_slots bs
+      JOIN bookings b ON bs.booking_id = b.id
       ${joinClause}
       LEFT JOIN reviews r ON r.booking_id = b.id AND r.deleted_at IS NULL
       ${whereClause}
-      ORDER BY b.created_at DESC
+      ORDER BY bs.slot_date DESC, bs.slot ASC
       `,
       {
-        replacements: { searchDate },
+        replacements: { searchDate, searchDates },
       }
     );
 
