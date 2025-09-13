@@ -1,4 +1,4 @@
-const { User, Skill, TableHints, sequelize } = require('../models'); // added TableHints
+const { User, Skill, Media, sequelize } = require('../models'); // added TableHints
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -97,19 +97,43 @@ exports.getFeed = async (req, res) => {
         if (staticSkillRates.length === 0) continue;
       }
 
-      // Fetch skill names
       const skillIds = staticSkillRates.map(sr => sr.id);
-      const skillsFromDB = await Skill.findAll({
-        where: { id: skillIds },
-        attributes: ['id', 'name']
+
+      // Fetch all media for these skills in a single query
+      const allMedia = await Media.findAll({
+        where: {
+          skill_id: {
+            [Op.in]: skillIds  // Requires importing Op from sequelize
+          }
+        }
       });
 
+      // Group media by skill_id
+      const mediaBySkillId = {};
+      allMedia.forEach(media => {
+        if (!mediaBySkillId[media.skill_id]) {
+          mediaBySkillId[media.skill_id] = [];
+        }
+        mediaBySkillId[media.skill_id].push(media);
+      });
+
+      // ✅ Fetch all skills into an array
+      const skills = await Skill.findAll({
+        where: {
+          id: {
+            [Op.in]: skillIds
+          }
+        }
+      });
+
+      // Create the final result
       const skillsWithRate = staticSkillRates.map(sr => {
-        const match = skillsFromDB.find(s => s.id === sr.id);
+        const match = skills.find(s => s.id === sr.id); // ✅ now using array
         return {
           id: sr.id,
           name: match ? match.name : null,
-          rate: sr.rate
+          rate: sr.rate,
+          videos: mediaBySkillId[sr.id] || []
         };
       });
 
