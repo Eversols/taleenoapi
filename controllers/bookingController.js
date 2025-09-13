@@ -1,4 +1,4 @@
-const { Booking, Client, Talent, User, Skill, Review } = require('../models');
+const { Booking, Client, Talent, User, Skill, Review ,BookingSlot} = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const axios = require("axios");
@@ -264,12 +264,12 @@ exports.getBookings = async (req, res) => {
 
 exports.createBooking = async (req, res) => {
   try {
-    const { talent_id, skill_id, dates, time_slots, note } = req.body;
+    const { talent_id, skill_id, time_slots, note } = req.body;
 
     // Validate input
-    if (!talent_id || !skill_id || !Array.isArray(dates) || !Array.isArray(time_slots)) {
+    if (!talent_id || !skill_id || typeof time_slots !== 'object') {
       return res.status(400).json(
-        sendJson(false, 'Talent ID, skill ID, dates and time slots are required')
+        sendJson(false, 'Talent ID, skill ID and time slots are required')
       );
     }
 
@@ -299,58 +299,58 @@ exports.createBooking = async (req, res) => {
       return res.status(404).json(sendJson(false, 'Skill not found'));
     }
 
-    // Prepare bookings and check existing
-    const bookingData = [];
+    // ✅ Create main booking record
+    const booking = await Booking.create({
+      client_id: client.id,
+      talent_id,
+      skill_id,
+      note: note || null,
+      status: 'pending'
+    });
+
+    // ✅ Insert slots
+    const slotData = [];
     const duplicates = [];
 
-    for (const date of dates) {
-      for (const slot of time_slots) {
-        const existing = await Booking.findOne({
-          where: {
-            client_id: client.id,
-            talent_id,
-            created_at: date,
-            time_slot: slot
-          }
+    for (const [date, slots] of Object.entries(time_slots)) {
+      for (const slot of slots) {
+        // check if slot already exists for this booking
+        const existing = await BookingSlot.findOne({
+          where: { booking_id: booking.id, slot_date: date, slot }
         });
 
         if (existing) {
-          duplicates.push({ date, time_slot: slot });
+          duplicates.push({ date, slot });
         } else {
-          bookingData.push({
-            client_id: client.id,
-            talent_id,
-            skill_id,
-            created_at: date,
-            time_slot: slot,
-            note: note || null,
-            status: 'pending'
+          slotData.push({
+            booking_id: booking.id,
+            slot_date: date,
+            slot
           });
         }
       }
     }
 
-    let createdBookings = [];
-    if (bookingData.length > 0) {
-      createdBookings = await Booking.bulkCreate(bookingData);
+    let createdSlots = [];
+    if (slotData.length > 0) {
+      createdSlots = await BookingSlot.bulkCreate(slotData);
     }
 
     return res.status(201).json(
       sendJson(true, 'Booking request processed', {
-        created_count: createdBookings.length,
-        skipped_count: duplicates.length,
-        created: createdBookings,
-        already_exists: duplicates
+        booking_id: booking.id,
+        booking_slots: createdSlots,
       })
     );
 
   } catch (error) {
     console.error('Booking creation error:', error);
     return res.status(500).json(
-      sendJson(false, 'Failed to create bookings', { error: error.message })
+      sendJson(false, 'Failed to create booking', { error: error.message })
     );
   }
 };
+
 
 // Add this new controller function to your bookings controller file
 exports.getBookingDetails = async (req, res) => {
@@ -1040,7 +1040,7 @@ exports.createCheckout = async (req, res) => {
     );
 
     // ✅ Save checkout in DB
-    const payment = await Payment.create({
+    const Booking = await Booking.create({
       user_id: req.user.id,
       transaction_id: merchantTransactionId,
       amount: parseFloat(amount).toFixed(2),
@@ -1052,7 +1052,7 @@ exports.createCheckout = async (req, res) => {
 
     return res.status(201).json(
       sendJson(true, "Checkout created successfully", {
-        id: payment.id,
+        id: Booking.id,
         checkoutId: response.data.id
       })
     );

@@ -11,7 +11,24 @@ module.exports = (sequelize, DataTypes) => {
     status: {
       type: DataTypes.ENUM('pending','accepted', 'paymentPending','rejected','inProgress', 'completed','reviewPending','requestedForRescheduleByUser','requestedForRescheduleByTalent','canceledByUser','canceledByTalent','isPaid','confirm'),
       defaultValue: 'pending'
-    }
+    },
+
+    // 🔽 Newly added fields
+    feed_id: DataTypes.INTEGER,
+    transaction_id: DataTypes.STRING,
+    amount: DataTypes.DECIMAL(10, 2),
+    currency: DataTypes.STRING,
+    payment_status: {
+      type: DataTypes.ENUM('pending', 'success', 'failed'),
+      defaultValue: 'pending'
+    },
+    checkout_id: DataTypes.STRING,
+    payment_type: DataTypes.STRING,
+    brand: DataTypes.STRING,
+    result_code: DataTypes.STRING,
+    result_description: DataTypes.TEXT,
+    booking_date: DataTypes.DATEONLY
+    // 🔼
   }, {
     tableName: 'bookings',
     underscored: true,
