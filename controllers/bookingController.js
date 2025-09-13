@@ -406,7 +406,6 @@ exports.getBookingDetails = async (req, res) => {
       LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
       LEFT JOIN cities tcc ON t.city = tcc.id
       LEFT JOIN countries tctry ON tcc.country_id = tctry.id
-      
       WHERE b.id = :bookingId
       LIMIT 1
     `, {
@@ -421,6 +420,16 @@ exports.getBookingDetails = async (req, res) => {
     }
 
     const row = results[0];
+
+    // ✅ Fetch only booked slots for this booking (no duplicates)
+    const [bookedSlots] = await sequelize.query(`
+      SELECT 
+        bs.slot_date AS booking_date,
+        bs.slot AS booking_time
+      FROM booking_slots bs
+      WHERE bs.booking_id = :booking_id
+      ORDER BY bs.slot_date ASC, bs.slot ASC
+    `, { replacements: { booking_id: row.booking_id } });
 
     // Format time
     let time = "12:00 AM";
@@ -483,34 +492,30 @@ exports.getBookingDetails = async (req, res) => {
     // ✅ Role based response formatting
     let response;
     if (role === "talent") {
-      // Show client details if logged in as Talent
       response = {
         booking_id: row.booking_id,
         user_id : row.client_user_id,
-        date,
-        time,
         location,
         status: row.status || 'pending',
         username: row.client_full_name || '',
         profilePhoto: clientProfilePhoto,
         description: row.note || '',
         skill: row.skill_name || '',
-        review_id: row.review_id || ''
+        review_id: row.review_id || '',
+        bookedSlots // unique slots for this booking
       };
     } else if (role === "client") {
-      // Show talent details if logged in as Client
       response = {
         booking_id: row.booking_id,
         user_id : row.talent_user_id,
-        date,
-        time,
         location,
         status: row.status || 'pending',
         username: row.talent_full_name || '',
         profilePhoto: talentProfilePhoto,
         description: row.note || '',
         skill: row.skill_name || '',
-        review_id: row.review_id || ''
+        review_id: row.review_id || '',
+        bookedSlots // unique slots for this booking
       };
     } else {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
