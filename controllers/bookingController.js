@@ -719,13 +719,14 @@ exports.MyBookingsForTalent = async (req, res) => {
             b.id AS booking_id,
             c.full_name AS client_name,
             t.full_name AS talent_name,
-            DATE(b.created_at) AS booking_date,
-            b.time_slot AS booking_time,
+            bs.slot_date AS booking_date,
+            bs.slot AS booking_time,
             r.rating,
             c.country AS client_country,
             c.profile_photo AS client_profile_photo,
             t.profile_photo AS talent_profile_photo
-         FROM bookings b
+         FROM booking_slots bs
+         JOIN bookings b ON bs.booking_id = b.id
          JOIN clients c ON b.client_id = c.id
          JOIN talents t ON b.talent_id = t.id
          LEFT JOIN (
@@ -735,7 +736,7 @@ exports.MyBookingsForTalent = async (req, res) => {
             GROUP BY booking_id
          ) r ON r.booking_id = b.id
          WHERE t.user_id = :userId
-         ORDER BY b.created_at DESC`,
+         ORDER BY bs.slot_date DESC, bs.slot ASC`,
         { replacements: { userId } }
       );
     } else if (role === "client") {
@@ -744,13 +745,14 @@ exports.MyBookingsForTalent = async (req, res) => {
             b.id AS booking_id,
             c.full_name AS client_name,
             t.full_name AS talent_name,
-            DATE(b.created_at) AS booking_date,
-            b.time_slot AS booking_time,
+            bs.slot_date AS booking_date,
+            bs.slot AS booking_time,
             r.rating,
             c.country AS client_country,
             c.profile_photo AS client_profile_photo,
             t.profile_photo AS talent_profile_photo
-         FROM bookings b
+         FROM booking_slots bs
+         JOIN bookings b ON bs.booking_id = b.id
          JOIN clients c ON b.client_id = c.id
          JOIN talents t ON b.talent_id = t.id
          LEFT JOIN (
@@ -760,7 +762,7 @@ exports.MyBookingsForTalent = async (req, res) => {
             GROUP BY booking_id
          ) r ON r.booking_id = b.id
          WHERE c.user_id = :userId
-         ORDER BY b.created_at DESC`,
+         ORDER BY bs.slot_date DESC, bs.slot ASC`,
         { replacements: { userId } }
       );
     } else {
