@@ -3,6 +3,8 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const axios = require("axios");
 const { Payment } = require("../models");
+const https = require("https");
+const querystring = require("querystring");
 const { sendJson } = require('../utils/helpers');
 
 const BookingStatusEnum = [
@@ -1012,14 +1014,16 @@ exports.createCheckout = async (req, res) => {
       country,
       postcode,
       givenName,
-      surname
+      surname,
+      booking_id // <-- must come from req.body if updating
     } = req.body;
 
-    if (!amount || !email || !merchantTransactionId) {
+    if (!amount || !email || !merchantTransactionId || !booking_id) {
       return res.status(400).json(sendJson(false, "Missing required fields"));
     }
 
-    const data = new URLSearchParams({
+    // Build request data
+    const data = querystring.stringify({
       entityId: "8ac7a4c79483092601948366b9d1011b",
       amount: parseFloat(amount).toFixed(2),
       currency: "SAR",
@@ -1037,42 +1041,79 @@ exports.createCheckout = async (req, res) => {
       "customer.surname": surname
     });
 
-    const response = await axios.post(
-      "https://eu-test.oppwa.com/v1/checkouts",
-      data.toString(),
-      {
-        headers: {
-          Authorization:
-            "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo=",
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
+    // HTTPS request options
+    const options = {
+      port: 443,
+      host: "eu-test.oppwa.com",
+      path: "/v1/checkouts",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": data.length,
+        Authorization:
+          "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo="
       }
-    );
+    };
 
-    // ✅ Save checkout in DB
-    const Booking = await Booking.create({
-      user_id: req.user.id,
-      transaction_id: merchantTransactionId,
-      amount: parseFloat(amount).toFixed(2),
-      currency: "SAR",
-      status: "PENDING",
-      checkout_id: response.data.id,
-      payment_type: "DB"
+    // Call HyperPay API
+    const response = await new Promise((resolve, reject) => {
+      const buf = [];
+      const postRequest = https.request(options, (resHyperpay) => {
+        resHyperpay.on("data", (chunk) => buf.push(chunk));
+        resHyperpay.on("end", () => {
+          try {
+            const json = JSON.parse(Buffer.concat(buf).toString("utf8"));
+            resolve(json);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+      postRequest.on("error", reject);
+      postRequest.write(data);
+      postRequest.end();
     });
+
+    let booking;
+    if (booking_id) {
+      // 🔹 Update existing booking
+      booking = await Booking.findByPk(booking_id);
+      if (!booking) {
+        return res.status(404).json(sendJson(false, "Booking not found"));
+      }
+
+      await booking.update({
+        user_id: req.user.id,
+        transaction_id: merchantTransactionId,
+        amount: parseFloat(amount).toFixed(2),
+        currency: "SAR",
+        status: "PENDING",
+        checkout_id: response.id,
+        payment_type: "DB"
+      });
+    } else {
+      // 🔹 Create new booking
+      booking = await Booking.create({
+        user_id: req.user.id,
+        transaction_id: merchantTransactionId,
+        amount: parseFloat(amount).toFixed(2),
+        currency: "SAR",
+        status: "PENDING",
+        checkout_id: response.id,
+        payment_type: "DB"
+      });
+    }
 
     return res.status(201).json(
       sendJson(true, "Checkout created successfully", {
-        id: Booking.id,
-        checkoutId: response.data.id
+        booking
       })
     );
   } catch (error) {
-    console.error("HyperPay Checkout Error:", error.response?.data || error.message);
-    return res.status(500).json(
-      sendJson(false, "Failed to create checkout", {
-        error: error.response?.data || error.message
-      })
-    );
+    console.error("HyperPay Checkout Error:", error);
+    return res
+      .status(500)
+      .json(sendJson(false, "Failed to create checkout", { error: error.message }));
   }
 };
 
