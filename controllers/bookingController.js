@@ -813,12 +813,13 @@ exports.MyBookingSlotsForTalent = async (req, res) => {
 
     const [results] = await sequelize.query(
       `SELECT 
-        DATE(b.created_at) AS booking_date,
-        b.time_slot AS booking_time
-      FROM bookings b
+        bs.slot_date AS booking_date,
+        bs.slot AS booking_time
+      FROM booking_slots bs
+      JOIN bookings b ON bs.booking_id = b.id
       JOIN talents t ON b.talent_id = t.id
       WHERE t.user_id = :talentId
-      ORDER BY b.created_at ASC`,
+      ORDER BY bs.slot_date ASC, bs.slot ASC`,
       {
         replacements: { talentId }
       }
@@ -905,7 +906,6 @@ exports.bookingsSlotshaveclient = async (req, res) => {
 exports.MyBookingSlotsForClient = async (req, res) => {
   try {
     const clientId = req.user.id;
-    const { bookingdates } = req.body; // <-- get from body
 
     const [results] = await sequelize.query(
       `SELECT 
@@ -915,10 +915,9 @@ exports.MyBookingSlotsForClient = async (req, res) => {
       JOIN bookings b ON bs.booking_id = b.id
       JOIN clients c ON b.client_id = c.id
       WHERE c.user_id = :clientId
-      ${bookingdates && bookingdates.length ? 'AND bs.slot_date IN (:bookingdates)' : ''}
       ORDER BY bs.slot_date ASC, bs.slot ASC`,
       {
-        replacements: { clientId, bookingdates }
+        replacements: { clientId }
       }
     );
 
