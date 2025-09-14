@@ -120,6 +120,7 @@ exports.getFeed = async (req, res) => {
             profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
             video_url: user.talent?.video_url || null,
             jobs,        // total bookings count
+            rating: user.rating || 5,
             ratinginnumber,      // ⭐ rating out of 5
             likes_count: user.talent?.getDataValue('likes_count') || 0,
             unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
