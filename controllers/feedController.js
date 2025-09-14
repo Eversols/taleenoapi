@@ -18,6 +18,13 @@ exports.getFeed = async (req, res) => {
       if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
     }
 
+    // Get all skills once (fix)
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
     // Get users with talent info
     const users = await User.findAll({
       where: userWhere,
@@ -87,6 +94,13 @@ exports.getFeed = async (req, res) => {
           media.skill_rate = skill.rate;
         }
 
+        // Prepare skills array with name + rate
+        const talentSkillsWithNames = (user.talent?.skills || []).map(s => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,
+          rate: s.rate
+        }));
+
         feed.push({
           ...media.toJSON(),
           TalentRate: skill?.rate ? Number(skill.rate) : null,
@@ -110,6 +124,7 @@ exports.getFeed = async (req, res) => {
             is_unliked: user.talent?.getDataValue('reaction') === 'unlike',
             rating: user.rating || 5,
             views: user.views || 0,
+            talentSkills: talentSkillsWithNames,
             is_wishlisted: !!user.talent?.getDataValue('is_wishlisted'),
             wishlist_count: user.talent?.getDataValue('wishlist_count') || 0
           }

@@ -951,7 +951,7 @@ exports.MyBookingSlotsForClient = async (req, res) => {
 };
 exports.rescheduleBooking = async (req, res) => {
   try {
-    const { booking_id, new_date, new_time } = req.body;
+    const { booking_id, old_date, old_time, new_date, new_time } = req.body;
     const role = req.user.role;
 
     if (!booking_id || !new_date || !new_time) {
@@ -966,14 +966,13 @@ exports.rescheduleBooking = async (req, res) => {
       return res.status(404).json(sendJson(false, "Booking not found"));
     }
 
-    // ✅ Only client or talent who owns the booking can request reschedule
+    // ✅ Authorization: only client or talent can reschedule their own booking
     let owner;
     if (role === "client") {
       owner = await Client.findOne({ where: { user_id: req.user.id } });
       if (!owner || booking.client_id !== owner.id) {
         return res.status(403).json(sendJson(false, "Not authorized to reschedule this booking"));
       }
-
     } else if (role === "talent") {
       owner = await Talent.findOne({ where: { user_id: req.user.id } });
       if (!owner || booking.talent_id !== owner.id) {
@@ -983,12 +982,32 @@ exports.rescheduleBooking = async (req, res) => {
       return res.status(403).json(sendJson(false, "Invalid role"));
     }
 
-    // ✅ Update booking new schedule
-    await Booking.update(
-      { created_at: new_date, time_slot: new_time },
-      { where: { id: booking_id } }
-    );
+    // ✅ Update booking slot(s)
+    const slot = await BookingSlot.findOne({
+      where: {
+        booking_id,
+        ...(old_date && { slot_date: old_date }),
+        ...(old_time && { slot: old_time })
+      }
+    });
 
+    if (!slot) {
+      return res.status(404).json(sendJson(false, "Original slot not found"));
+    }
+
+    // Check for duplicate new slot
+    const existing = await BookingSlot.findOne({
+      where: { booking_id, slot_date: new_date, slot: new_time }
+    });
+
+    if (existing) {
+      return res.status(400).json(sendJson(false, "New slot already exists for this booking"));
+    }
+
+    // Update slot
+    slot.slot_date = new_date;
+    slot.slot = new_time;
+    await slot.save();
 
     return res.status(200).json(
       sendJson(true, "Booking rescheduled successfully", {
@@ -997,6 +1016,7 @@ exports.rescheduleBooking = async (req, res) => {
         new_time,
       })
     );
+
   } catch (error) {
     console.error("Error rescheduling booking:", error);
     return res.status(500).json(
