@@ -64,7 +64,6 @@ exports.getFeed = async (req, res) => {
         if (!talentSkills.length) continue;
       }
 
-      // Filter by price range
       if (price_range) {
         const [minPrice, maxPrice] = price_range.split('-').map(Number);
         talentSkills = talentSkills.filter(s => Number(s.rate) >= minPrice && Number(s.rate) <= maxPrice);
@@ -73,19 +72,24 @@ exports.getFeed = async (req, res) => {
 
       const skillIds = talentSkills.map(s => s.id);
 
-      // Fetch media for this user's skills
       const mediaItems = await Media.findAll({
         where: { skill_id: { [Op.in]: skillIds } }
       });
 
-      // Format media items with talent info
       mediaItems.forEach(media => {
         if (media.fileUrl && !media.fileUrl.startsWith('http')) {
           media.fileUrl = `${BASE_URL}${media.fileUrl}`;
         }
+        
+        const skill = user.talent?.skills.find(s => s.id === media.skill_id);
+        if (skill) {
+          media.skill_id = skill.id;
+          media.skill_rate = skill.rate;
+        }
 
         feed.push({
           ...media.toJSON(),
+          TalentRate: skill?.rate ? Number(skill.rate) : null,
           talent: {
             id: user.id,
             user_id: user.id,
