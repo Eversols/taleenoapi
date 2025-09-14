@@ -18,7 +18,6 @@ exports.getFeed = async (req, res) => {
       if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
     }
 
-    // Get all skills once (fix)
     const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
     const skillsMap = allSkills.reduce((acc, s) => {
       acc[s.id] = s.name;
@@ -47,7 +46,7 @@ exports.getFeed = async (req, res) => {
             )`), 'reaction'],
             [sequelize.literal(`(
               SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id
-            )`), 'bookings_count'],
+            )`), 'total_bookings'],
             [sequelize.literal(`(
               SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id
               ${req.user ? `AND w.user_id = ${req.user.id}` : ``}
@@ -71,6 +70,7 @@ exports.getFeed = async (req, res) => {
         if (!talentSkills.length) continue;
       }
 
+      // Filter by price
       if (price_range) {
         const [minPrice, maxPrice] = price_range.split('-').map(Number);
         talentSkills = talentSkills.filter(s => Number(s.rate) >= minPrice && Number(s.rate) <= maxPrice);
@@ -87,7 +87,7 @@ exports.getFeed = async (req, res) => {
         if (media.fileUrl && !media.fileUrl.startsWith('http')) {
           media.fileUrl = `${BASE_URL}${media.fileUrl}`;
         }
-        
+
         const skill = user.talent?.skills.find(s => s.id === media.skill_id);
         if (skill) {
           media.skill_id = skill.id;
@@ -100,6 +100,9 @@ exports.getFeed = async (req, res) => {
           name: skillsMap[s.id] || null,
           rate: s.rate
         }));
+        const jobs = user.talent?.getDataValue('total_bookings') || 0;
+        const MAX_JOBS = 20; // adjust threshold
+        const ratinginnumber = Math.min(5, (jobs / MAX_JOBS) * 5);
 
         feed.push({
           ...media.toJSON(),
@@ -116,13 +119,13 @@ exports.getFeed = async (req, res) => {
             country: user.talent?.country || null,
             profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
             video_url: user.talent?.video_url || null,
-            jobs: user.talent?.getDataValue('bookings_count') || 0,
+            jobs,        // total bookings count
+            ratinginnumber,      // ⭐ rating out of 5
             likes_count: user.talent?.getDataValue('likes_count') || 0,
             unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
             reaction: user.talent?.getDataValue('reaction') || null,
             is_liked: user.talent?.getDataValue('reaction') === 'like',
             is_unliked: user.talent?.getDataValue('reaction') === 'unlike',
-            rating: user.rating || 5,
             views: user.views || 0,
             talentSkills: talentSkillsWithNames,
             is_wishlisted: !!user.talent?.getDataValue('is_wishlisted'),
