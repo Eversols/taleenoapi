@@ -420,6 +420,20 @@ exports.getBookingDetails = async (req, res) => {
     }
 
     const row = results[0];
+    const talent = await Talent.findByPk(row.talent_id);
+
+    // ✅ Define media object to avoid ReferenceError
+    const SkillRate = {};
+
+    if (talent && Array.isArray(talent.skills)) {
+      // find the skill object inside array where id matches row.skill_id
+      const skill = talent.skills.find(s => Number(s.id) === Number(row.skill_id));
+
+      if (skill) {
+        SkillRate.rating = Number(skill.rate);
+      }
+    }
+
 
     // ✅ Fetch only booked slots for this booking (no duplicates)
     const [bookedSlots] = await sequelize.query(`
@@ -502,7 +516,8 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots // unique slots for this booking
+        bookedSlots, // unique slots for this booking
+         ...SkillRate
       };
     } else if (role === "client") {
       response = {
@@ -515,7 +530,8 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots // unique slots for this booking
+        bookedSlots, // unique slots for this booking
+         ...SkillRate 
       };
     } else {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
