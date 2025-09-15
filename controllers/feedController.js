@@ -72,6 +72,19 @@ exports.getFeed = async (req, res) => {
       if (media.fileUrl && !media.fileUrl.startsWith('http')) {
         media.fileUrl = `${BASE_URL}${media.fileUrl}`;
       }
+      // fetch likes count
+      const likesCount = await sequelize.models.MediaLike.count({
+        where: { media_id: media.id }
+      });
+
+      // check if this user liked it
+      let isLiked = false;
+      if (req.user) {
+        const userLiked = await sequelize.models.MediaLike.findOne({
+          where: { media_id: media.id, user_id: req.user.id }
+        });
+        isLiked = !!userLiked;
+      }
 
       const skill = talentSkills.find(s => s.id === media.skill_id);
 
@@ -89,6 +102,8 @@ exports.getFeed = async (req, res) => {
       feed.push({
         ...media.toJSON(),
         TalentRate: skill?.rate ? Number(skill.rate) : null,
+        likes_count: likesCount,
+        is_liked: isLiked,
         talent: {
           id: user.id,
           user_id: user.id,
