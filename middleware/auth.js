@@ -24,11 +24,11 @@ module.exports = async function (req, res, next) {
     }
 
     // ❌ Blocked check
-    if (user.is_blocked) {
-      return res.status(403).json(
-        sendJson(false, 'Your account has been blocked. Please contact support.')
-      );
-    }
+    // if (user.is_blocked) {
+    //   return res.status(403).json(
+    //     sendJson(false, 'Your account has been blocked. Please contact support.')
+    //   );
+    // }
 
     req.user = user;
     next();
