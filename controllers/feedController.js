@@ -9,6 +9,7 @@ exports.getFeed = async (req, res) => {
 
     const userWhere = { role: 'talent' };
     if (username) userWhere.username = username;
+    userWhere.is_blocked = 0;
 
     const talentWhere = {};
     if (talent_type) talentWhere.main_talent = talent_type;
@@ -24,7 +25,6 @@ exports.getFeed = async (req, res) => {
       return acc;
     }, {});
 
-    // Get users with talent info
     const users = await User.findAll({
       where: userWhere,
       include: [
@@ -60,6 +60,7 @@ exports.getFeed = async (req, res) => {
     });
 
     const feed = [];
+    const addedMediaIds = new Set(); // ✅ prevent duplicates
 
     for (const user of users) {
       let talentSkills = user.talent?.skills || [];
@@ -84,6 +85,9 @@ exports.getFeed = async (req, res) => {
       });
 
       mediaItems.forEach(media => {
+        if (addedMediaIds.has(media.id)) return; // ✅ skip duplicates
+        addedMediaIds.add(media.id);
+
         if (media.fileUrl && !media.fileUrl.startsWith('http')) {
           media.fileUrl = `${BASE_URL}${media.fileUrl}`;
         }
