@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client, Follow , Skill,sequelize} = require('../models');
+const { User, Talent, Client, Follow , Skill,Block,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 const path = require("path");
 const fs = require("fs");
@@ -689,23 +689,45 @@ exports.deleteUser = async (req, res) => {
 // Block or Unblock User API
 exports.blockUser = async (req, res) => {
   try {
-    const { user_id } = req.body; // 👈 ID of user to block/unblock (for admin)
-    const user = await User.findByPk(user_id);
+    const { user_id } = req.body;   // 👈 user being blocked/unblocked
+    const blockerId = req.user.id;  // 👈 current logged-in user (admin or talent/client)
 
+    const user = await User.findByPk(user_id);
     if (!user) {
       return res.status(404).json(sendJson(false, 'User not found'));
     }
 
-    // Toggle block status
-    const newStatus = user.is_blocked ? 0 : 1;
-    await user.update({ is_blocked: newStatus });
+    // Check if block already exists
+    const existingBlock = await Block.findOne({
+      where: { blocker_id: blockerId, blocked_id: user_id }
+    });
 
-    return res.status(200).json(
-      sendJson(true, `User ${newStatus ? 'blocked' : 'unblocked'} successfully`, {
-        user_id: user.id,
-        is_blocked: newStatus
-      })
-    );
+    if (existingBlock) {
+      // ✅ Unblock
+      await existingBlock.destroy();
+      await user.update({ is_blocked: 0 });
+
+      return res.status(200).json(
+        sendJson(true, 'User unblocked successfully', {
+          user_id: user.id,
+          is_blocked: 0
+        })
+      );
+    } else {
+      // ✅ Block
+      await Block.create({
+        blocker_id: blockerId,
+        blocked_id: user_id
+      });
+      await user.update({ is_blocked: 1 });
+
+      return res.status(200).json(
+        sendJson(true, 'User blocked successfully', {
+          user_id: user.id,
+          is_blocked: 1
+        })
+      );
+    }
   } catch (error) {
     console.error('Error blocking user:', error);
     return res.status(500).json(
