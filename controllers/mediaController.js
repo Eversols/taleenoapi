@@ -350,25 +350,53 @@ exports.remove = async (req, res) => {
 
 exports.like = async (req, res) => {
   try {
-    const media = await Media.findByPk(req.params.id);
+    const { id } = req.params; // media id
+    const userId = req.user.id;
 
+    const media = await Media.findByPk(id);
     if (!media) {
-      return res.status(404).json(
-        sendJson(false, 'Media not found')
-      );
+      return res.status(404).json(sendJson(false, 'Media not found'));
     }
 
-    await media.increment('likes');
-    return res.status(200).json(
-      sendJson(true, 'Media liked successfully', {
-        likes: media.likes + 1
-      })
-    );
+    // check if user already liked
+    const existing = await sequelize.models.MediaLike.findOne({
+      where: { media_id: id, user_id: userId }
+    });
+
+    if (existing) {
+      // unlike (remove record)
+      await existing.destroy();
+      const likesCount = await sequelize.models.MediaLike.count({
+        where: { media_id: id }
+      });
+
+      return res.status(200).json(
+        sendJson(true, 'Media unliked successfully', {
+          likes_count: likesCount,
+          is_liked: false
+        })
+      );
+    } else {
+      // like (create record)
+      await sequelize.models.MediaLike.create({
+        media_id: id,
+        user_id: userId
+      });
+
+      const likesCount = await sequelize.models.MediaLike.count({
+        where: { media_id: id }
+      });
+
+      return res.status(200).json(
+        sendJson(true, 'Media liked successfully', {
+          likes_count: likesCount,
+          is_liked: true
+        })
+      );
+    }
   } catch (error) {
     return res.status(500).json(
-      sendJson(false, 'Failed to like media', {
-        error: error.message
-      })
+      sendJson(false, 'Failed to like/unlike media', { error: error.message })
     );
   }
 };
