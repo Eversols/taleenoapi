@@ -25,6 +25,7 @@ exports.getFeed = async (req, res) => {
       return acc;
     }, {});
 
+    // Get users with talent info
     const users = await User.findAll({
       where: userWhere,
       include: [
@@ -60,7 +61,6 @@ exports.getFeed = async (req, res) => {
     });
 
     const feed = [];
-    const addedMediaIds = new Set(); // ✅ prevent duplicates
 
     for (const user of users) {
       let talentSkills = user.talent?.skills || [];
@@ -85,9 +85,6 @@ exports.getFeed = async (req, res) => {
       });
 
       mediaItems.forEach(media => {
-        if (addedMediaIds.has(media.id)) return; // ✅ skip duplicates
-        addedMediaIds.add(media.id);
-
         if (media.fileUrl && !media.fileUrl.startsWith('http')) {
           media.fileUrl = `${BASE_URL}${media.fileUrl}`;
         }
@@ -124,7 +121,7 @@ exports.getFeed = async (req, res) => {
             profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
             video_url: user.talent?.video_url || null,
             jobs,        // total bookings count
-            rating: user.rating || 5,
+            rating: user.rating || 0,
             ratinginnumber,      // ⭐ rating out of 5
             likes_count: user.talent?.getDataValue('likes_count') || 0,
             unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
