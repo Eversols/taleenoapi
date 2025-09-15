@@ -629,11 +629,34 @@ exports.ByDateBookings = async (req, res) => {
       );
     }
 
+    // ✅ get the actual client_id or talent_id linked to this user
+    let roleEntityId = null;
+    if (userRole === "client") {
+      const client = await Client.findOne({ where: { user_id: req.user.id } });
+      if (!client) {
+        return res.status(404).json(sendJson(false, 'Client record not found'));
+      }
+      roleEntityId = client.id;
+    } else if (userRole === "talent") {
+      const talent = await Talent.findOne({ where: { user_id: req.user.id } });
+      if (!talent) {
+        return res.status(404).json(sendJson(false, 'Talent record not found'));
+      }
+      roleEntityId = talent.id;
+    }
+
     let whereClause = '';
     if (searchDates && searchDates.length) {
       whereClause = `WHERE bs.slot_date IN (:searchDates)`;
     } else if (searchDate) {
       whereClause = `WHERE bs.slot_date = :searchDate`;
+    }
+
+    // ✅ Add filter by the actual client/talent id
+    if (userRole === 'client') {
+      whereClause += whereClause ? ` AND b.client_id = ${roleEntityId}` : `WHERE b.client_id = ${roleEntityId}`;
+    } else if (userRole === 'talent') {
+      whereClause += whereClause ? ` AND b.talent_id = ${roleEntityId}` : `WHERE b.talent_id = ${roleEntityId}`;
     }
 
     // Decide what to select depending on role
@@ -726,6 +749,7 @@ exports.ByDateBookings = async (req, res) => {
     );
   }
 };
+
 
 
 exports.MyBookingsForTalent = async (req, res) => {
