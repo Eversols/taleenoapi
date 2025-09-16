@@ -36,7 +36,7 @@ exports.getFeed = async (req, res) => {
       .filter(b => b.blocked_id === req.user.id)
       .map(b => b.blocker_id);
     const blockedIds = blockedUsers.map(b =>
-      b.blocker_id === req.user.id ? b.blocker_id : b.blocked_id
+      b.blocker_id === req.user.id ? b.blocked_id : b.blocker_id
     );
 
     // skills map
