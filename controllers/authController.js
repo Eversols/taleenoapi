@@ -218,11 +218,11 @@ exports.loginWithPhone = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
-    if (user.is_blocked) {
-      return res.status(403).json(
-        sendJson(false, 'Your account has been blocked. Please contact support.')
-      );
-    }
+    // if (user.is_blocked) {
+    //   return res.status(403).json(
+    //     sendJson(false, 'Your account has been blocked. Please contact support.')
+    //   );
+    // }
     // Generate OTP
     // const otp = generateOTP();
     const otp = "1234";
@@ -269,11 +269,11 @@ exports.verifyLoginOTP = async (req, res) => {
       );
     }
 
-    if (user.is_blocked) {
-      return res.status(403).json(
-        sendJson(false, 'Your account has been blocked. Please contact support.')
-      );
-    }
+    // if (user.is_blocked) {
+    //   return res.status(403).json(
+    //     sendJson(false, 'Your account has been blocked. Please contact support.')
+    //   );
+    // }
     // Clear OTP
     await user.update({
       verification_code: null,
