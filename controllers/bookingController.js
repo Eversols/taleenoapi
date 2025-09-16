@@ -509,7 +509,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id : row.client_user_id,
-        location,
+        location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         status: row.status || 'pending',
         username: row.client_full_name || '',
         profilePhoto: clientProfilePhoto,
@@ -523,7 +523,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id : row.talent_user_id,
-        location,
+        location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         status: row.status || 'pending',
         username: row.talent_full_name || '',
         profilePhoto: talentProfilePhoto,
