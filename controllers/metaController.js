@@ -1,4 +1,4 @@
-const { Skill, Level, TalentCategory, Language } = require('../models');
+const { Skill, Level, TalentCategory, Language, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 
 exports.getMetaData = async (req, res) => {
@@ -22,11 +22,28 @@ exports.getMetaData = async (req, res) => {
       })
     ]);
 
+    // ✅ Fix: Join users table to check is_blocked
+    const [rateRangeResult] = await sequelize.query(`
+      SELECT 
+        MIN(CAST(JSON_UNQUOTE(JSON_EXTRACT(js.value, '$.rate')) AS UNSIGNED)) AS min_rate,
+        MAX(CAST(JSON_UNQUOTE(JSON_EXTRACT(js.value, '$.rate')) AS UNSIGNED)) AS max_rate
+      FROM talents t
+      JOIN users u ON u.id = t.user_id
+      JOIN JSON_TABLE(t.skills, '$[*]' COLUMNS (
+        value JSON PATH '$'
+      )) AS js
+      WHERE u.is_blocked = 0 AND u.role = 'talent'
+    `);
+
+    const rateRange = rateRangeResult[0] || { min_rate: null, max_rate: null };
+
     return res.status(200).json(
-      sendJson(true, 'Meta data retrieved successfully', {skills,
+      sendJson(true, 'Meta data retrieved successfully', {
+        skills,
         levels,
         talentCategories,
-        languages
+        languages,
+        rateRange
       })
     );
   } catch (error) {

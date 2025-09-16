@@ -64,8 +64,8 @@ exports.getBookings = async (req, res) => {
           c.full_name AS client_full_name,
           c.profile_photo AS client_profile_photo,
           c.gender AS client_gender,
-          c.country AS client_country,
-          cc.name AS client_city,
+          cc.name AS client_city_name,
+          ctryc.name AS client_country_name,
 
           uc.id AS client_user_id,
           uc.username AS client_username,
@@ -75,7 +75,8 @@ exports.getBookings = async (req, res) => {
           t.id AS talent_id,
           t.full_name AS talent_full_name,
           t.hourly_rate AS talent_hourly_rate,
-          tc.name AS talent_city,
+          tcc.name AS talent_city_name,
+          tctry.name AS talent_country_name,
           t.availability AS availability,
 
           ut.id AS talent_user_id,
@@ -95,7 +96,9 @@ exports.getBookings = async (req, res) => {
         LEFT JOIN users ut ON t.user_id = ut.id
         LEFT JOIN skills s ON b.skill_id = s.id
         LEFT JOIN cities cc ON c.city = cc.id
-        LEFT JOIN cities tc ON t.city = tc.id
+        LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
+        LEFT JOIN cities tcc ON t.city = tcc.id
+        LEFT JOIN countries tctry ON tcc.country_id = tctry.id
         LEFT JOIN (
           SELECT booking_id, MAX(rating) AS rating
           FROM reviews
@@ -108,7 +111,6 @@ exports.getBookings = async (req, res) => {
         LIMIT :limit OFFSET :offset
       `, { replacements: { userId, searchDate, limit, offset } });
 
-      // ✅ Get total count
       [[{ total }]] = await sequelize.query(`
         SELECT COUNT(*) as total
         FROM bookings b
@@ -129,10 +131,10 @@ exports.getBookings = async (req, res) => {
           
           c.id AS client_id,
           c.full_name AS client_full_name,
-          t.profile_photo AS client_profile_photo,
+          c.profile_photo AS client_profile_photo,
           c.gender AS client_gender,
-          c.country AS client_country,
-          cc.name AS client_city,
+          cc.name AS client_city_name,
+          ctryc.name AS client_country_name,
 
           uc.id AS client_user_id,
           uc.username AS client_username,
@@ -141,8 +143,10 @@ exports.getBookings = async (req, res) => {
 
           t.id AS talent_id,
           t.full_name AS talent_full_name,
+          t.profile_photo AS talent_profile_photo,
           t.hourly_rate AS talent_hourly_rate,
-          tc.name AS talent_city,
+          tcc.name AS talent_city_name,
+          tctry.name AS talent_country_name,
           t.availability AS availability,
 
           ut.id AS talent_user_id,
@@ -162,7 +166,9 @@ exports.getBookings = async (req, res) => {
         LEFT JOIN users ut ON t.user_id = ut.id
         LEFT JOIN skills s ON b.skill_id = s.id
         LEFT JOIN cities cc ON c.city = cc.id
-        LEFT JOIN cities tc ON t.city = tc.id
+        LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
+        LEFT JOIN cities tcc ON t.city = tcc.id
+        LEFT JOIN countries tctry ON tcc.country_id = tctry.id
         LEFT JOIN (
           SELECT booking_id, MAX(rating) AS rating
           FROM reviews
@@ -200,6 +206,14 @@ exports.getBookings = async (req, res) => {
         ? new Date(row.created_at).toISOString().split('T')[0]
         : null;
 
+      // ✅ Format location like in getBookingDetails
+      let location = "";
+      if (role === "talent" && row.client_city_name && row.client_country_name) {
+        location = `${row.talent_country_name}, ${row.talent_city_name}`;
+      } else if (role === "client" && row.talent_city_name && row.talent_country_name) {
+        location = `${row.talent_country_name}, ${row.talent_city_name}`;
+      }
+
       return {
         booking_id: row.booking_id,
         booking_date,
@@ -207,7 +221,8 @@ exports.getBookings = async (req, res) => {
         status: row.status || 'pending',
         description: row.note || '',
         rating: row.rating || null,
-        skill_name: row.skill_name || '',   // ✅ keep skill name here
+        skill_name: row.skill_name || '',
+        location, // ✅ proper location added
 
         ...(role === "talent"
           ? {
@@ -236,7 +251,7 @@ exports.getBookings = async (req, res) => {
       rating: Bookings.length > 0 ? (Bookings[0].rating || 0) : 0,
       booking: Bookings.map(b => ({
         skillname: b.skill_name,
-        location: role === "talent" ? b.client_country : '',
+        location: b.location,
         status: b.status,
         time: b.booking_time,
         day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
@@ -257,9 +272,7 @@ exports.getBookings = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json(
-      sendJson(false, 'Failed to fetch bookings', {
-        error: error.message
-      })
+      sendJson(false, 'Failed to fetch bookings', { error: error.message })
     );
   }
 };
