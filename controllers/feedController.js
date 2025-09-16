@@ -1,4 +1,4 @@
-const { User, Skill, Media, sequelize } = require('../models');
+const { User, Skill, Media, Block, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -18,6 +18,27 @@ exports.getFeed = async (req, res) => {
       if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
     }
 
+    // ✅ Find blocked users (both directions)
+    const blockedUsers = await Block.findAll({
+      where: {
+        [Op.or]: [
+          { blocker_id: req.user.id },
+          { blocked_id: req.user.id }
+        ]
+      }
+    });
+
+    const blockedByMe = blockedUsers
+      .filter(b => b.blocker_id === req.user.id)
+      .map(b => b.blocked_id);
+
+    const blockedMe = blockedUsers
+      .filter(b => b.blocked_id === req.user.id)
+      .map(b => b.blocker_id);
+    const blockedIds = blockedUsers.map(b =>
+      b.blocker_id === req.user.id ? b.blocked_id : b.blocker_id
+    );
+
     // skills map
     const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
     const skillsMap = allSkills.reduce((acc, s) => {
@@ -25,8 +46,12 @@ exports.getFeed = async (req, res) => {
       return acc;
     }, {});
 
-    // fetch all media first
-    const mediaItems = await Media.findAll();
+    // fetch all media first (skip blocked users here)
+    const mediaItems = await Media.findAll({
+      where: {
+        userId: { [Op.notIn]: blockedIds }
+      }
+    });
 
     const feed = [];
 
@@ -54,6 +79,9 @@ exports.getFeed = async (req, res) => {
 
       if (!user || !user.talent) continue;
 
+      // ✅ Skip blocked users again (extra check)
+      if (blockedIds.includes(user.id)) continue;
+
       let talentSkills = user.talent.skills || [];
 
       // filter skill
@@ -72,19 +100,6 @@ exports.getFeed = async (req, res) => {
       if (media.fileUrl && !media.fileUrl.startsWith('http')) {
         media.fileUrl = `${BASE_URL}${media.fileUrl}`;
       }
-      // fetch likes count
-      const likesCount = await sequelize.models.MediaLike.count({
-        where: { media_id: media.id }
-      });
-
-      // check if this user liked it
-      let isLiked = false;
-      if (req.user) {
-        const userLiked = await sequelize.models.MediaLike.findOne({
-          where: { media_id: media.id, user_id: req.user.id }
-        });
-        isLiked = !!userLiked;
-      }
 
       const skill = talentSkills.find(s => s.id === media.skill_id);
 
@@ -94,7 +109,17 @@ exports.getFeed = async (req, res) => {
         name: skillsMap[s.id] || null,
         rate: s.rate
       }));
-
+      const likesCount = await sequelize.models.MediaLike.count({
+        where: { media_id: media.id }
+      });
+      
+      let isLiked = false;
+      if (req.user) {
+        const userLiked = await sequelize.models.MediaLike.findOne({
+          where: { media_id: media.id, user_id: req.user.id }
+        });
+        isLiked = !!userLiked;
+      }
       const jobs = user.talent?.getDataValue('total_bookings') || 0;
       const MAX_JOBS = 20;
       const ratinginnumber = Math.min(5, (jobs / MAX_JOBS) * 5);
