@@ -151,7 +151,8 @@ exports.list = async (req, res) => {
 
 exports.updateonlyImg = async (req, res) => {
   try {
-    const media = await Media.findByPk(req.params.id);
+    const { type ,id} = req.body;
+    const media = await Media.findByPk(id);
 
     if (!media) {
       return res.status(404).json(
@@ -169,7 +170,11 @@ exports.updateonlyImg = async (req, res) => {
         sendJson(false, 'No file uploaded')
       );
     }
-
+    if (!type) {
+      return res.status(400).json(
+        sendJson(false, 'Either a type must be provided for file')
+      );
+    }
     // ✅ Add original extension
     const ext = path.extname(req.file.originalname);
     const finalFileName = req.file.filename + ext;
@@ -187,7 +192,7 @@ exports.updateonlyImg = async (req, res) => {
 
     await media.update({
       fileUrl,
-      type: req.file.mimetype.includes('video') ? 'video' : 'image',
+      type,
     });
     let skill = null;
     if (req.body.skill_id) {
@@ -222,14 +227,14 @@ exports.update = async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
 
-    const { type } = req.body;
+    // const { type } = req.body;
 
-    // Validate at least one update parameter exists
-    if (!type) {
-      return res.status(400).json(
-        sendJson(false, 'Either a type must be provided for file')
-      );
-    }
+    // // Validate at least one update parameter exists
+    // if (!type) {
+    //   return res.status(400).json(
+    //     sendJson(false, 'Either a type must be provided for file')
+    //   );
+    // }
 
     if (!media) {
       return res.status(404).json(
@@ -242,33 +247,33 @@ exports.update = async (req, res) => {
         sendJson(false, 'You are not authorized to update this media')
       );
     }
-    if (!req.file) {
-      return res.status(400).json(
-        sendJson(false, 'No file uploaded')
-      );
-    }
+    // if (!req.file) {
+    //   return res.status(400).json(
+    //     sendJson(false, 'No file uploaded')
+    //   );
+    // }
 
-    // ✅ Add original extension
-    const ext = path.extname(req.file.originalname);
-    const finalFileName = req.file.filename + ext;
-    const finalPath = path.join(path.dirname(req.file.path), finalFileName);
+    // // ✅ Add original extension
+    // const ext = path.extname(req.file.originalname);
+    // const finalFileName = req.file.filename + ext;
+    // const finalPath = path.join(path.dirname(req.file.path), finalFileName);
 
-    // ✅ If file already exists → remove it
-    if (fs.existsSync(finalPath)) {
-      fs.unlinkSync(finalPath);
-    }
+    // // ✅ If file already exists → remove it
+    // if (fs.existsSync(finalPath)) {
+    //   fs.unlinkSync(finalPath);
+    // }
 
-    // ✅ Rename uploaded file to include extension
-    fs.renameSync(req.file.path, finalPath);
+    // // ✅ Rename uploaded file to include extension
+    // fs.renameSync(req.file.path, finalPath);
 
-    const fileUrl = `/uploads/${finalFileName}`;
+    // const fileUrl = `/uploads/${finalFileName}`;
 
     await media.update({
       skill_id: req.body.skill_id,
       title: req.body.title,
       description: req.body.description,
-      fileUrl,
-      type: type,
+      // fileUrl,
+      // type: type,
       visibility: req.body.visibility === '1' ? true : false
     });
     let skill = null;
