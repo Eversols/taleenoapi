@@ -152,7 +152,8 @@ exports.getFeed = async (req, res) => {
           views: user.views || 0,
           talentSkills: talentSkillsWithNames,
           is_wishlisted: !!user.talent?.getDataValue('is_wishlisted'),
-          wishlist_count: user.talent?.getDataValue('wishlist_count') || 0
+          wishlist_count: user.talent?.getDataValue('wishlist_count') || 0,
+          availability: user.availability
         }
       });
     }
