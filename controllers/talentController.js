@@ -476,3 +476,138 @@ exports.viewTalent = async (req, res) => {
     );
   }
 };
+// Get all talents with all related data
+exports.getTalents = async (req, res) => {
+  try {
+    const userId = req.user?.id || null;
+
+    const rows = await sequelize.query(`
+      SELECT 
+        t.id AS talent_id,
+        t.full_name,
+        t.gender,
+        t.age,
+        t.country,
+        t.city,
+        t.languages,
+        t.main_talent,
+        t.skills AS talent_skills,
+        t.experience_level,
+        t.hourly_rate,
+        t.currency,
+        t.about,
+        t.profile_photo,
+        t.is_approved AS status,  -- ✅ alias is_approved as status
+        t.availability,
+        t.video_url,
+        t.created_at,
+        u.id AS user_id,
+        u.username,
+        u.email,
+        u.phone_number,
+        (
+          SELECT COUNT(*) FROM likes l WHERE l.talent_id = t.id AND l.type = 'like'
+        ) AS likes_count,
+        (
+          SELECT COUNT(*) FROM likes l WHERE l.talent_id = t.id AND l.type = 'unlike'
+        ) AS unlikes_count,
+        (
+          SELECT COUNT(*) FROM shares s WHERE s.talent_id = t.id
+        ) AS shares_count,
+        (
+          SELECT type FROM likes l WHERE l.talent_id = t.id AND l.user_id = :userId LIMIT 1
+        ) AS reaction,
+        (
+          SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = t.id AND w.user_id = :userId
+        ) AS in_wishlist
+      FROM talents t
+      JOIN users u ON u.id = t.user_id
+      ORDER BY t.id DESC
+    `, {
+      replacements: { userId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // Fetch all skills once
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+    // Format response
+    const formattedTalents = rows.map(row => {
+      let profile_photo = null;
+      if (row.profile_photo) {
+        profile_photo = `${BASE_URL}/${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
+      }
+
+      let parsedSkills = [];
+      try {
+        const skillsArray = row.talent_skills ? JSON.parse(row.talent_skills) : [];
+        parsedSkills = Array.isArray(skillsArray)
+          ? skillsArray.map(s => ({
+              id: s.id,
+              name: skillsMap[s.id] || null,
+              rate: s.rate
+            }))
+          : [];
+      } catch (e) {
+        parsedSkills = [];
+      }
+
+      let like = null;
+      if (row.reaction === 'like') like = true;
+      else if (row.reaction === 'unlike') like = false;
+
+      return {
+        id: row.talent_id,
+        full_name: row.full_name,
+        gender: row.gender,
+        age: row.age,
+        country: row.country,
+        city: row.city,
+        languages: row.languages,
+        main_talent: row.main_talent,
+        experience_level: row.experience_level,
+        hourly_rate: row.hourly_rate,
+        currency: row.currency,
+        about: row.about,
+        profile_photo,
+        video_url: row.video_url,
+        status: row.status, // 👈 alias for is_approved
+        availability: row.availability,
+        created_at: row.created_at,
+        user: {
+          id: row.user_id,
+          username: row.username,
+          email: row.email,
+          phone_number: row.phone_number,
+        },
+        skills: parsedSkills,
+        likes_count: row.likes_count || 0,
+        unlikes_count: row.unlikes_count || 0,
+        shares_count: row.shares_count || 0,
+        reaction: row.reaction || null,
+        like,
+        in_wishlist: !!row.in_wishlist,
+      };
+    });
+
+    return res.status(200).json(
+      sendJson(true, 'Talents retrieved successfully', {
+        count: formattedTalents.length,
+        talents: formattedTalents
+      })
+    );
+  } catch (error) {
+    console.error('❌ Get Talents Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve talents', {
+        error: error.message
+      })
+    );
+  }
+};

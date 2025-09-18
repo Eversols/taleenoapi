@@ -892,3 +892,86 @@ exports.deleteInterest = async (req, res) => {
   }
 };
 
+// Get all clients with full details
+exports.getAllClients = async (req, res) => {
+  try {
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, "") || "";
+
+    // Fetch all users with role=client including their client info
+    const clients = await User.findAll({
+      where: { role: "client" },
+      attributes: { exclude: ["password", "verification_code", "verification_code_expire"] },
+      include: [
+        {
+          model: Client,
+          as: "client",
+          attributes: { exclude: ["user_id", "createdAt", "updatedAt", "deleted_at"] },
+        },
+      ],
+    });
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json(sendJson(false, "No clients found"));
+    }
+
+    // Fetch all talents (for mapping interests → names)
+    const talents = await Talent.findAll({ attributes: ["id", "full_name"] });
+    const TalentsMap = {};
+    talents.forEach((t) => {
+      TalentsMap[t.id] = t.full_name;
+    });
+
+    // Shape response data
+    const response = clients.map((u) => {
+      const clientInfo = u.client ? u.client.toJSON() : {};
+
+      // 👉 Parse interests
+      let clientInterests = [];
+      if (clientInfo.interests) {
+        const interestIds = Array.isArray(clientInfo.interests)
+          ? clientInfo.interests
+              .map((i) => i.toString().split(","))
+              .flat()
+              .map((id) => parseInt(id))
+              .filter((id) => !isNaN(id))
+          : typeof clientInfo.interests === "string"
+          ? clientInfo.interests
+              .split(",")
+              .map((id) => parseInt(id))
+              .filter((id) => !isNaN(id))
+          : [];
+
+        clientInterests = interestIds.map((id) => ({
+          id,
+          name: TalentsMap[id] || null,
+        }));
+      }
+
+      return {
+        id: u.id,
+        username: u.username,
+        phone_number: u.phone_number,
+        email: u.email,
+        role: u.role,
+        is_verified: u.is_verified,
+        on_board: u.on_board,
+        notification_alert: u.notification_alert,
+        availability: u.availability,
+        userInfo: {
+          ...clientInfo,
+          interests: clientInterests,
+          profile_photo: clientInfo.profile_photo
+            ? `${BASE_URL}${clientInfo.profile_photo}`
+            : null,
+        },
+      };
+    });
+
+    return res.status(200).json(sendJson(true, "Clients retrieved successfully", response));
+  } catch (error) {
+    console.error("Get clients error:", error);
+    return res
+      .status(500)
+      .json(sendJson(false, "Server error while retrieving clients", { error: error.message }));
+  }
+};
