@@ -457,6 +457,18 @@ exports.getBookingDetails = async (req, res) => {
       WHERE bs.booking_id = :booking_id
       ORDER BY bs.slot_date ASC, bs.slot ASC
     `, { replacements: { booking_id: row.booking_id } });
+    const groupedSlots = bookedSlots.reduce((acc, slot) => {
+      let existing = acc.find(item => item.booking_date === slot.booking_date);
+      if (existing) {
+        existing.booking_times.push(slot.booking_time);
+      } else {
+        acc.push({
+          booking_date: slot.booking_date,
+          booking_times: [slot.booking_time]
+        });
+      }
+      return acc;
+    }, []);
 
     // Format time
     let time = "12:00 AM";
@@ -529,7 +541,7 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots, // unique slots for this booking
+        bookedSlots:groupedSlots, // unique slots for this booking
          ...SkillRate
       };
     } else if (role === "client") {
@@ -543,7 +555,7 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots, // unique slots for this booking
+        bookedSlots:groupedSlots, // unique slots for this booking
          ...SkillRate 
       };
     } else {

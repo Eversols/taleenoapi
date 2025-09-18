@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -22,7 +23,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const wishlistRoutes = require('./routes/mediaWishlistRoutes');
 
 require('dotenv').config();
-
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api', metaRoutes);

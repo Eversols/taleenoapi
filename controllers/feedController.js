@@ -50,7 +50,8 @@ exports.getFeed = async (req, res) => {
     const mediaItems = await Media.findAll({
       where: {
         userId: { [Op.notIn]: blockedIds }
-      }
+      },
+      order: [['id', 'DESC']]   // ✅ Correct placement
     });
 
     const feed = [];
@@ -78,6 +79,8 @@ exports.getFeed = async (req, res) => {
       });
 
       if (!user || !user.talent) continue;
+      // ✅ Skip if availability is null
+      if (!user.availability) continue;
 
       // ✅ Skip blocked users again (extra check)
       if (blockedIds.includes(user.id)) continue;
