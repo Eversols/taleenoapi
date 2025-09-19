@@ -10,5 +10,6 @@ router.post('/register', adminController.register); // Requires authentication (
 router.post('/login', adminController.login);
 router.post('/talent', talentController.getTalents);
 router.post('/client', authController.getAllClients);
+router.post('/detailsUser', authController.detailsUser);
 
 module.exports = router;

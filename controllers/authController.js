@@ -975,3 +975,108 @@ exports.getAllClients = async (req, res) => {
       .json(sendJson(false, "Server error while retrieving clients", { error: error.message }));
   }
 };
+exports.detailsUser = async (req, res) => {
+  try {
+    const { id, role } = req.body; // accept id and role
+
+    if (!id) {
+      return res.status(400).json({ status: false, message: "id and role are required" });
+    }
+
+    // fetch user
+    const user = await User.findOne({
+      where: {id},
+      include: [
+        {
+          association: "talent",
+          attributes: { exclude: ["user_id", "createdAt", "updatedAt"] }
+        },
+        {
+          association: "client",
+          attributes: { exclude: ["user_id", "createdAt", "updatedAt"] }
+        }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ status: false, message: "User not found" });
+    }
+
+    // counts
+    const [followersCount, followingsCount] = await Promise.all([
+      Follow.count({ where: { followingId: user.id } }),
+      Follow.count({ where: { followerId: user.id } })
+    ]);
+
+    // token (optional, if needed)
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE
+    });
+
+    // fetch all skills dictionary
+    const allSkills = await Skill.findAll({ attributes: ["id", "name"] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    // attach skill names if talent
+    let talentData = null;
+    if (user.role === "talent" && user.talent) {
+      talentData = {
+        ...user.talent.toJSON(),
+        skills: (user.talent.skills || []).map((s) => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,
+          rate: s.rate
+        }))
+      };
+    }
+
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, "") || "";
+
+    const userData = {
+      token,
+      id: user.id,
+      username: user.username,
+      phone_number: user.phone_number,
+      email: user.email,
+      role: user.role,
+      is_verified: user.is_verified,
+      on_board: user.on_board,
+      notification_alert: user.notification_alert,
+      availability: user.availability,
+      followers: followersCount,
+      followings: followingsCount,
+      userInfo:
+        user.role === "talent"
+          ? {
+              ...talentData,
+              profile_photo: talentData?.profile_photo
+                ? `${BASE_URL}${talentData.profile_photo}`
+                : null
+            }
+          : user.client
+          ? {
+              ...user.client.toJSON(),
+              profile_photo: user.client.profile_photo
+                ? `${BASE_URL}${user.client.profile_photo}`
+                : null
+            }
+          : null
+    };
+
+    return res.status(200).json({
+      status: true,
+      message: "User details fetched successfully",
+      data: userData
+    });
+  } catch (error) {
+    console.error("detailsUser API error:", error);
+    return res.status(500).json({
+      status: false,
+      message: "Server error fetching user details",
+      error: error.message
+    });
+  }
+};
