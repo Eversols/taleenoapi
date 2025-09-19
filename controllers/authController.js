@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client, Follow , Skill,Block,sequelize} = require('../models');
+const { User, Talent, Client, Follow , Skill,Block,Media,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 const path = require("path");
 const fs = require("fs");
@@ -1008,10 +1008,10 @@ exports.detailsUser = async (req, res) => {
       Follow.count({ where: { followerId: user.id } })
     ]);
 
-    // token (optional, if needed)
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRE
-    });
+    // // token (optional, if needed)
+    // const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+    //   expiresIn: process.env.JWT_EXPIRE
+    // });
 
     // fetch all skills dictionary
     const allSkills = await Skill.findAll({ attributes: ["id", "name"] });
@@ -1019,6 +1019,13 @@ exports.detailsUser = async (req, res) => {
       acc[s.id] = s.name;
       return acc;
     }, {});
+    
+    const mediaItems = await Media.findAll({
+      where: {
+        userId: id  // ✅ corrected
+      },
+      order: [['id', 'DESC']]   // ✅ Correct placement
+    });
 
     // attach skill names if talent
     let talentData = null;
@@ -1035,8 +1042,15 @@ exports.detailsUser = async (req, res) => {
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, "") || "";
 
+    // Corrected media URL mapping
+    mediaItems.forEach((media) => {
+      if (media.fileUrl && !media.fileUrl.startsWith('http')) {
+        media.fileUrl = `${BASE_URL}${media.fileUrl}`;
+      }
+    });
+
     const userData = {
-      token,
+      // token,
       id: user.id,
       username: user.username,
       phone_number: user.phone_number,
@@ -1048,6 +1062,7 @@ exports.detailsUser = async (req, res) => {
       availability: user.availability,
       followers: followersCount,
       followings: followingsCount,
+      mediaItems: mediaItems,
       userInfo:
         user.role === "talent"
           ? {
