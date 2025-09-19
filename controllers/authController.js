@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client, Follow , Skill,Block,Media,sequelize} = require('../models');
+const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 const path = require("path");
 const fs = require("fs");
@@ -977,7 +977,7 @@ exports.getAllClients = async (req, res) => {
 };
 exports.detailsUser = async (req, res) => {
   try {
-    const { id, role } = req.body; // accept id and role
+    const { id } = req.body;
 
     if (!id) {
       return res.status(400).json({ status: false, message: "id and role are required" });
@@ -985,7 +985,7 @@ exports.detailsUser = async (req, res) => {
 
     // fetch user
     const user = await User.findOne({
-      where: {id},
+      where: { id },
       include: [
         {
           association: "talent",
@@ -1019,7 +1019,7 @@ exports.detailsUser = async (req, res) => {
       acc[s.id] = s.name;
       return acc;
     }, {});
-    
+
     const mediaItems = await Media.findAll({
       where: {
         userId: id  // ✅ corrected
@@ -1049,6 +1049,37 @@ exports.detailsUser = async (req, res) => {
       }
     });
 
+    // ✅ Reviews with rating breakdown
+    const reviews = await Review.findAll({
+      where: { reviewed_id: id },
+      include: [
+        { model: User, as: "reviewer", attributes: ["id", "username"] },
+        { model: Booking, as: "booking", attributes: ["id", "note"] }
+      ],
+      order: [["created_at", "DESC"]]
+    });
+
+    const totalReviews = reviews.length;
+    let rating = 0;
+    let ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+    if (totalReviews > 0) {
+      reviews.forEach((rev) => {
+        const r = rev.rating || 0;
+        rating += r;
+        if (ratingBreakdown[r] !== undefined) {
+          ratingBreakdown[r] += 1;
+        }
+      });
+
+      rating = parseFloat((rating / totalReviews).toFixed(1));
+
+      // convert counts to percentages
+      Object.keys(ratingBreakdown).forEach((star) => {
+        ratingBreakdown[star] = Math.round((ratingBreakdown[star] / totalReviews) * 100);
+      });
+    }
+
     const userData = {
       // token,
       id: user.id,
@@ -1063,6 +1094,10 @@ exports.detailsUser = async (req, res) => {
       followers: followersCount,
       followings: followingsCount,
       mediaItems: mediaItems,
+      reviews: reviews,
+      rating,
+      totalReviews,
+      ratingBreakdown,
       userInfo:
         user.role === "talent"
           ? {
