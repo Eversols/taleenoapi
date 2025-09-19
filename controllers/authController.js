@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,sequelize} = require('../models');
+const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,Like,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 const path = require("path");
 const fs = require("fs");
@@ -1050,14 +1050,68 @@ exports.detailsUser = async (req, res) => {
     });
 
     // ✅ Reviews with rating breakdown
-    const reviews = await Review.findAll({
-      where: { reviewed_id: id },
+const reviews = await Review.findAll({
+  where: { reviewed_id: id },
+  include: [
+    {
+      model: User,
+      as: "reviewer",
+      attributes: ["id", "username", "role"],
       include: [
-        { model: User, as: "reviewer", attributes: ["id", "username"] },
-        { model: Booking, as: "booking", attributes: ["id", "note"] }
-      ],
-      order: [["created_at", "DESC"]]
+        { association: "talent", attributes: ["profile_photo"] },
+        { association: "client", attributes: ["profile_photo"] }
+      ]
+    },
+    { model: Booking, as: "booking", attributes: ["id", "note"] }
+  ],
+  order: [["created_at", "DESC"]]
+});
+
+// Attach extra fields (profile photo, date, likes)
+const loggedInUserId = req.user?.id || null; // ✅ from auth middleware if available
+
+for (const rev of reviews) {
+  const reviewer = rev.reviewer;
+
+  // ✅ reviewer profile photo
+  if (reviewer) {
+    let photo = null;
+    if (reviewer.role === "talent" && reviewer.talent?.profile_photo) {
+      photo = `${BASE_URL}${reviewer.talent.profile_photo}`;
+    } else if (reviewer.role === "client" && reviewer.client?.profile_photo) {
+      photo = `${BASE_URL}${reviewer.client.profile_photo}`;
+    }
+    rev.reviewer = {
+      ...reviewer.toJSON(),
+      profile_photo: photo
+    };
+  }
+
+  // ✅ format date
+  rev.dataValues.createdAtFormatted = new Date(rev.created_at).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+
+  // ✅ count likes for this review
+  const likesCount = await Like.count({
+    where: { talent_id: rev.reviewed_id, type: "like" }
+  });
+
+  // ✅ check if current user liked
+  let userLiked = false;
+  if (loggedInUserId) {
+    const existingLike = await Like.findOne({
+      where: { user_id: loggedInUserId, talent_id: rev.reviewed_id, type: "like" }
     });
+    userLiked = !!existingLike;
+  }
+
+  rev.dataValues.likesCount = likesCount;
+  rev.dataValues.userLiked = userLiked;
+}
+
 
     const totalReviews = reviews.length;
     let rating = 0;
