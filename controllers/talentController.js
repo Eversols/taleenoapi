@@ -538,63 +538,65 @@ exports.getTalents = async (req, res) => {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
     // Format response
-    const formattedTalents = rows.map(row => {
-      let profile_photo = null;
-      if (row.profile_photo) {
-        profile_photo = `${BASE_URL}/${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
-      }
+    const formattedTalents = rows
+      .filter(row => row.availability) // ✅ skip talents with NULL availability
+      .map(row => {
+        let profile_photo = null;
+        if (row.profile_photo) {
+          profile_photo = `${BASE_URL}/${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
+        }
 
-      let parsedSkills = [];
-      try {
-        const skillsArray = row.talent_skills ? JSON.parse(row.talent_skills) : [];
-        parsedSkills = Array.isArray(skillsArray)
-          ? skillsArray.map(s => ({
-              id: s.id,
-              name: skillsMap[s.id] || null,
-              rate: s.rate
-            }))
-          : [];
-      } catch (e) {
-        parsedSkills = [];
-      }
+        let parsedSkills = [];
+        try {
+          const skillsArray = row.talent_skills ? JSON.parse(row.talent_skills) : [];
+          parsedSkills = Array.isArray(skillsArray)
+            ? skillsArray.map(s => ({
+                id: s.id,
+                name: skillsMap[s.id] || null,
+                rate: s.rate
+              }))
+            : [];
+        } catch (e) {
+          parsedSkills = [];
+        }
 
-      let like = null;
-      if (row.reaction === 'like') like = true;
-      else if (row.reaction === 'unlike') like = false;
+        let like = null;
+        if (row.reaction === 'like') like = true;
+        else if (row.reaction === 'unlike') like = false;
 
-      return {
-        id: row.talent_id,
-        full_name: row.full_name,
-        gender: row.gender,
-        age: row.age,
-        country: row.country,
-        city: row.city,
-        languages: row.languages,
-        main_talent: row.main_talent,
-        experience_level: row.experience_level,
-        hourly_rate: row.hourly_rate,
-        currency: row.currency,
-        about: row.about,
-        profile_photo,
-        video_url: row.video_url,
-        status: row.status, // 👈 alias for is_approved
-        availability: row.availability,
-        created_at: row.created_at,
-        user: {
-          id: row.user_id,
-          username: row.username,
-          email: row.email,
-          phone_number: row.phone_number,
-        },
-        skills: parsedSkills,
-        likes_count: row.likes_count || 0,
-        unlikes_count: row.unlikes_count || 0,
-        shares_count: row.shares_count || 0,
-        reaction: row.reaction || null,
-        like,
-        in_wishlist: !!row.in_wishlist,
-      };
-    });
+        return {
+          id: row.talent_id,
+          full_name: row.full_name,
+          gender: row.gender,
+          age: row.age,
+          country: row.country,
+          city: row.city,
+          languages: row.languages,
+          main_talent: row.main_talent,
+          experience_level: row.experience_level,
+          hourly_rate: row.hourly_rate,
+          currency: row.currency,
+          about: row.about,
+          profile_photo,
+          video_url: row.video_url,
+          status: row.status, // 👈 alias for is_approved
+          availability: row.availability,
+          created_at: row.created_at,
+          user: {
+            id: row.user_id,
+            username: row.username,
+            email: row.email,
+            phone_number: row.phone_number,
+          },
+          skills: parsedSkills,
+          likes_count: row.likes_count || 0,
+          unlikes_count: row.unlikes_count || 0,
+          shares_count: row.shares_count || 0,
+          reaction: row.reaction || null,
+          like,
+          in_wishlist: !!row.in_wishlist,
+        };
+      });
 
     return res.status(200).json(
       sendJson(true, 'Talents retrieved successfully', {
