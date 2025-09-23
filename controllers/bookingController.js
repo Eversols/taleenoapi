@@ -1330,3 +1330,345 @@ exports.TalentAvailability = async (req, res) => {
   }
 };
 
+exports.AdminBookings = async (req, res) => {
+  try {
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const searchDate = req.query.date || null; // Only YYYY-MM-DD
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    if (searchDate) {
+      whereClause = `AND DATE(b.created_at) = :searchDate`;
+    }
+
+    // ✅ Fetch ALL bookings (admin, no role restriction)
+    const [results] = await sequelize.query(`
+      SELECT 
+        b.id AS booking_id,
+        b.created_at,
+        b.time_slot,
+        b.status,
+        b.note,
+        
+        c.id AS client_id,
+        c.full_name AS client_full_name,
+        c.profile_photo AS client_profile_photo,
+        c.gender AS client_gender,
+        cc.name AS client_city_name,
+        ctryc.name AS client_country_name,
+
+        uc.id AS client_user_id,
+        uc.username AS client_username,
+        uc.email AS client_email,
+        uc.phone_number AS client_phone_number,
+
+        t.id AS talent_id,
+        t.full_name AS talent_full_name,
+        t.profile_photo AS talent_profile_photo,
+        t.hourly_rate AS talent_hourly_rate,
+        tcc.name AS talent_city_name,
+        tctry.name AS talent_country_name,
+        t.availability AS availability,
+
+        ut.id AS talent_user_id,
+        ut.username AS talent_username,
+        ut.email AS talent_email,
+        ut.phone_number AS talent_phone_number,
+
+        s.id AS skill_id,
+        s.name AS skill_name,
+
+        r.rating AS rating
+
+      FROM bookings b
+      LEFT JOIN clients c ON b.client_id = c.id
+      LEFT JOIN users uc ON c.user_id = uc.id
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN users ut ON t.user_id = ut.id
+      LEFT JOIN skills s ON b.skill_id = s.id
+      LEFT JOIN cities cc ON c.city = cc.id
+      LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
+      LEFT JOIN cities tcc ON t.city = tcc.id
+      LEFT JOIN countries tctry ON tcc.country_id = tctry.id
+      LEFT JOIN (
+        SELECT booking_id, MAX(rating) AS rating
+        FROM reviews
+        WHERE deleted_at IS NULL
+        GROUP BY booking_id
+      ) r ON r.booking_id = b.id
+      WHERE 1=1
+      ${whereClause}
+      ORDER BY b.created_at DESC
+      LIMIT :limit OFFSET :offset
+    `, { replacements: { searchDate, limit, offset } });
+
+    // ✅ Count total
+    const [[{ total }]] = await sequelize.query(`
+      SELECT COUNT(*) as total
+      FROM bookings b
+      WHERE 1=1
+      ${whereClause}
+    `, { replacements: { searchDate } });
+
+    let totalHour = 0;
+    let totalRate = 0;
+
+    const Bookings = results.map(row => {
+      const rate = parseFloat(row.talent_hourly_rate) || 0;
+      totalHour += 1;
+      totalRate += rate;
+
+      const booking_date = row.created_at
+        ? new Date(row.created_at).toISOString().split('T')[0]
+        : null;
+
+      // ✅ Always show talent + client details for admin
+      let location = "";
+      if (row.talent_city_name && row.talent_country_name) {
+        location = `${row.talent_country_name}, ${row.talent_city_name}`;
+      }
+
+      return {
+        booking_id: row.booking_id,
+        booking_date,
+        booking_time: row.time_slot || '',
+        status: row.status || 'pending',
+        description: row.note || '',
+        rating: row.rating || null,
+        skill_name: row.skill_name || '',
+        location,
+        client_name: row.client_full_name || '',
+        client_profile_photo: row.client_profile_photo
+          ? (row.client_profile_photo.startsWith('http')
+              ? row.client_profile_photo
+              : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
+          : null,
+        talent_name: row.talent_full_name || '',
+        talent_profile_photo: row.talent_profile_photo
+          ? (row.talent_profile_photo.startsWith('http')
+              ? row.talent_profile_photo
+              : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`)
+          : null,
+      };
+    });
+
+    const bookings = {
+      totaltask: Bookings.length,
+      totalHour,
+      rating: Bookings.length > 0 ? (Bookings[0].rating || 0) : 0,
+      booking: Bookings.map(b => ({
+        skillname: b.skill_name,
+        location: b.location,
+        status: b.status,
+        time: b.booking_time,
+        day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
+        date: b.booking_date,
+        description: b.description,
+        bookingid: b.booking_id,
+        clientName: b.client_name,
+        talentName: b.talent_name,
+        clientPhoto: b.client_profile_photo,
+        talentPhoto: b.talent_profile_photo,
+        rating: b.rating || 0
+      })),
+      totalRecords: total,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit)
+    };
+
+    return res.status(200).json(
+      sendJson(true, 'All bookings retrieved successfully (Admin)', bookings)
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch bookings', { error: error.message })
+    );
+  }
+};
+exports.AdminBookingDetails = async (req, res) => {
+  try {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      return res.status(400).json(
+        sendJson(false, 'Booking ID is required')
+      );
+    }
+
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+    // ✅ Admin role force set
+    const role = "admin";
+
+    // Fetch booking details
+    const results = await sequelize.query(`
+      SELECT 
+        b.id AS booking_id,
+        b.created_at,
+        b.time_slot,
+        b.status,
+        b.note,
+        b.skill_id,
+        
+        c.id AS client_id,
+        c.full_name AS client_full_name,
+        c.city AS client_city,
+        cc.name AS client_city_name,
+        ctryc.name AS client_country_name,
+        c.profile_photo AS client_profile_photo,
+        c.user_id AS client_user_id,
+
+        t.id AS talent_id,
+        t.full_name AS talent_full_name,
+        t.city AS talent_city,
+        tcc.name AS talent_city_name,
+        tctry.name AS talent_country_name,
+        t.profile_photo AS talent_profile_photo,
+        t.user_id AS talent_user_id,
+
+        s.id AS skill_id,
+        s.name AS skill_name,
+        rv.id AS review_id
+      FROM bookings b
+      LEFT JOIN clients c ON b.client_id = c.id
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN skills s ON b.skill_id = s.id
+      LEFT JOIN reviews rv ON b.id = rv.booking_id
+      LEFT JOIN cities cc ON c.city = cc.id
+      LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
+      LEFT JOIN cities tcc ON t.city = tcc.id
+      LEFT JOIN countries tctry ON tcc.country_id = tctry.id
+      WHERE b.id = :bookingId
+      LIMIT 1
+    `, {
+      replacements: { bookingId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!results || results.length === 0) {
+      return res.status(404).json(
+        sendJson(false, 'Booking not found')
+      );
+    }
+
+    const row = results[0];
+    const talent = await Talent.findByPk(row.talent_id);
+
+    const SkillRate = {};
+    if (talent && Array.isArray(talent.skills)) {
+      const skill = talent.skills.find(s => Number(s.id) === Number(row.skill_id));
+      if (skill) {
+        SkillRate.rating = Number(skill.rate);
+      }
+    }
+
+    // Get booking slots
+    const [bookedSlots] = await sequelize.query(`
+      SELECT 
+        bs.slot_date AS booking_date,
+        bs.slot AS booking_time
+      FROM booking_slots bs
+      WHERE bs.booking_id = :booking_id
+      ORDER BY bs.slot_date ASC, bs.slot ASC
+    `, { replacements: { booking_id: row.booking_id } });
+
+    const groupedSlots = bookedSlots.reduce((acc, slot) => {
+      let existing = acc.find(item => item.booking_date === slot.booking_date);
+      if (existing) {
+        existing.booking_times.push(slot.booking_time);
+      } else {
+        acc.push({
+          booking_date: slot.booking_date,
+          booking_times: [slot.booking_time]
+        });
+      }
+      return acc;
+    }, []);
+
+    // Format date & time
+    let date = "";
+    if (row.created_at) {
+      const createdDate = new Date(row.created_at);
+      if (!isNaN(createdDate.getTime())) {
+        date = createdDate.toISOString().split('T')[0];
+      }
+    }
+
+    let time = "";
+    if (row.time_slot) {
+      try {
+        const [startTime] = row.time_slot.split(' - ');
+        if (startTime) {
+          const [hourStr = '0', minuteStr = '0'] = startTime.split(':');
+          const hour = parseInt(hourStr, 10);
+          const minute = parseInt(minuteStr, 10);
+          const timeDate = new Date();
+          timeDate.setHours(hour, minute, 0, 0);
+          time = timeDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+        }
+      } catch (e) {
+        console.error('Time formatting error:', e);
+      }
+    }
+
+    // Photos
+    const clientProfilePhoto = row.client_profile_photo
+      ? row.client_profile_photo.startsWith('http')
+        ? row.client_profile_photo
+        : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`
+      : null;
+
+    const talentProfilePhoto = row.talent_profile_photo
+      ? row.talent_profile_photo.startsWith('http')
+        ? row.talent_profile_photo
+        : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
+      : null;
+
+    // ✅ Admin full response (both sides visible)
+    const response = {
+      booking_id: row.booking_id,
+      status: row.status || 'pending',
+      note: row.note || '',
+      skill: row.skill_name || '',
+      review_id: row.review_id || '',
+      date,
+      time,
+      client: {
+        id: row.client_id,
+        name: row.client_full_name,
+        city: row.client_city_name,
+        country: row.client_country_name,
+        profilePhoto: clientProfilePhoto,
+        user_id: row.client_user_id
+      },
+      talent: {
+        id: row.talent_id,
+        name: row.talent_full_name,
+        city: row.talent_city_name,
+        country: row.talent_country_name,
+        profilePhoto: talentProfilePhoto,
+        user_id: row.talent_user_id
+      },
+      bookedSlots: groupedSlots,
+      ...SkillRate
+    };
+
+    return res.status(200).json(
+      sendJson(true, 'Booking details retrieved successfully', response)
+    );
+
+  } catch (error) {
+    console.error('Error fetching booking details:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch booking details', { error: error.message })
+    );
+  }
+};
+
