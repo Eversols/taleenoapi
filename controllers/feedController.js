@@ -171,6 +171,143 @@ exports.getFeed = async (req, res) => {
     );
   }
 };
+exports.AdminFeed = async (req, res) => {
+  try {
+    const BASE_URL = process.env.APP_URL;
+    const { username, talent_type, location, price_range, skill_id } = req.query;
+
+    const userWhere = { role: 'talent', is_blocked: 0 };
+    if (username) userWhere.username = username;
+
+    const talentWhere = {};
+    if (talent_type) talentWhere.main_talent = talent_type;
+    if (location) {
+      const [cityPart, countryPart] = location.split(',').map(l => l.trim());
+      if (cityPart) talentWhere.city = { [Op.like]: `%${cityPart}%` };
+      if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
+    }
+
+    // 🚀 Admin: no block restrictions
+    const blockedIds = [];
+
+    // skills map
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    // fetch all media (no block filtering)
+    const mediaItems = await Media.findAll({
+      order: [['id', 'DESC']]
+    });
+
+    const feed = [];
+
+    for (const media of mediaItems) {
+      const user = await User.findByPk(media.userId, {
+        where: userWhere,
+        include: [
+          {
+            association: 'talent',
+            where: talentWhere,
+            attributes: [
+              'id', 'full_name', 'city', 'country', 'profile_photo', 'video_url',
+              'main_talent', 'skills',
+              [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id)`), 'is_wishlisted'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id)`), 'wishlist_count']
+            ]
+          }
+        ]
+      });
+
+      if (!user || !user.talent) continue;
+      if (!user.availability) continue;
+
+      let talentSkills = user.talent.skills || [];
+
+      if (skill_id) {
+        talentSkills = talentSkills.filter(s => s.id == skill_id);
+        if (!talentSkills.length) continue;
+      }
+
+      if (price_range) {
+        const [minPrice, maxPrice] = price_range.split('-').map(Number);
+        talentSkills = talentSkills.filter(s => Number(s.rate) >= minPrice && Number(s.rate) <= maxPrice);
+        if (!talentSkills.length) continue;
+      }
+
+      if (media.fileUrl && !media.fileUrl.startsWith('http')) {
+        media.fileUrl = `${BASE_URL}${media.fileUrl}`;
+      }
+
+      const skill = talentSkills.find(s => s.id === media.skill_id);
+
+      const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,
+        rate: s.rate
+      }));
+
+      const likesCount = await sequelize.models.MediaLike.count({
+        where: { media_id: media.id }
+      });
+
+      // 🚀 Admin: no personal like check
+      const isLiked = false;
+
+      const jobs = user.talent?.getDataValue('total_bookings') || 0;
+      const MAX_JOBS = 20;
+      const ratinginnumber = Math.min(5, (jobs / MAX_JOBS) * 5);
+
+      feed.push({
+        ...media.toJSON(),
+        TalentRate: skill?.rate ? Number(skill.rate) : null,
+        likes_count: likesCount,
+        is_liked: isLiked,
+        talent: {
+          id: user.id,
+          user_id: user.id,
+          talent_id: user.talent?.id || null,
+          username: user.username,
+          full_name: user.talent?.full_name || null,
+          talent_type: user.talent?.main_talent || null,
+          location: `${user.talent?.city || ''}, ${user.talent?.country || ''}`,
+          city: user.talent?.city || null,
+          country: user.talent?.country || null,
+          profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
+          video_url: user.talent?.video_url || null,
+          jobs,
+          rating: user.rating || 0,
+          ratinginnumber,
+          likes_count: user.talent?.getDataValue('likes_count') || 0,
+          unlikes_count: user.talent?.getDataValue('unlikes_count') || 0,
+          reaction: null, // 🚀 Admin sees neutral reaction
+          is_liked: false,
+          is_unliked: false,
+          views: user.views || 0,
+          talentSkills: talentSkillsWithNames,
+          is_wishlisted: false,
+          wishlist_count: user.talent?.getDataValue('wishlist_count') || 0,
+          availability: user.availability
+        }
+      });
+    }
+
+    return res.status(200).json(
+      sendJson(true, 'Talent feed retrieved successfully', { feed })
+    );
+  } catch (error) {
+    console.error('Feed Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve talent feed', { error: error.message })
+    );
+  }
+};
+
 
 // .
 
