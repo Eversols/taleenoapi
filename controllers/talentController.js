@@ -505,6 +505,7 @@ exports.getTalents = async (req, res) => {
         u.username,
         u.email,
         u.phone_number,
+        u.status,
         (
           SELECT COUNT(*) FROM likes l WHERE l.talent_id = t.id AND l.type = 'like'
         ) AS likes_count,
@@ -587,6 +588,7 @@ exports.getTalents = async (req, res) => {
             username: row.username,
             email: row.email,
             phone_number: row.phone_number,
+            status: row.status,
           },
           skills: parsedSkills,
           likes_count: row.likes_count || 0,
