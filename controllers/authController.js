@@ -117,7 +117,24 @@ exports.verifyOTP = async (req, res) => {
     if (!user) {
       return res.status(400).json({ status: false, message: 'Invalid or expired OTP' });
     }
-
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
     // mark verified
     await user.update({
       is_verified: true,
@@ -218,11 +235,24 @@ exports.loginWithPhone = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
-    // if (user.is_blocked) {
-    //   return res.status(403).json(
-    //     sendJson(false, 'Your account has been blocked. Please contact support.')
-    //   );
-    // }
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
     // Generate OTP
     // const otp = generateOTP();
     const otp = "1234";
@@ -269,11 +299,24 @@ exports.verifyLoginOTP = async (req, res) => {
       );
     }
 
-    // if (user.is_blocked) {
-    //   return res.status(403).json(
-    //     sendJson(false, 'Your account has been blocked. Please contact support.')
-    //   );
-    // }
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
     // Clear OTP
     await user.update({
       verification_code: null,
@@ -319,7 +362,24 @@ exports.resendOTP = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
-
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
     // Generate new OTP
     // const otp = generateOTP();
     const otp = "1234";
@@ -363,7 +423,24 @@ exports.getMe = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
-
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
     return res.status(200).json(
       sendJson(true, 'User retrieved successfully', {
         user
@@ -395,7 +472,24 @@ exports.updateProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json(sendJson(false, 'User not found'));
     }
-
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     let profile_photo = req.file?.filename ? `${BASE_URL}/uploads/${req.file.filename}` : null;
      await user.update({
@@ -1255,5 +1349,41 @@ exports.detailsUser = async (req, res) => {
       message: "Server error fetching user details",
       error: error.message
     });
+  }
+};
+exports.updateUserStatus = async (req, res) => {
+  try {
+    const { userId, status } = req.body;
+
+    if (!userId || !status) {
+      return res.status(400).json(sendJson(false, 'User ID and status are required'));
+    }
+
+    const allowedStatuses = ['pending', 'approved', 'rejected', 'blocked'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json(sendJson(false, 'Invalid status value'));
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json(sendJson(false, 'User not found'));
+    }
+
+    user.status = status;
+    await user.save();
+
+    // ✅ SendJson for every status
+    return res.status(200).json(
+      sendJson(true, `User status updated to ${status}`, {
+        userId: user.id,
+        status: user.status
+      })
+    );
+
+  } catch (error) {
+    console.error('Error updating user status:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to update user status', { error: error.message })
+    );
   }
 };

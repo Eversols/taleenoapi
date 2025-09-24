@@ -139,6 +139,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 0
     },
+    status: {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected', 'blocked'),
+      allowNull: false,
+      defaultValue: 'pending',
+      comment: 'User account status: pending, approved, rejected, blocked'
+    },
 
   }, {
     sequelize,
