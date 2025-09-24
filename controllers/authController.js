@@ -1045,6 +1045,7 @@ exports.getAllClients = async (req, res) => {
         id: u.id,
         username: u.username,
         phone_number: u.phone_number,
+        status: u.status,
         email: u.email,
         role: u.role,
         is_verified: u.is_verified,
