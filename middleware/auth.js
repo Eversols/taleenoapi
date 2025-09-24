@@ -23,17 +23,29 @@ module.exports = async function (req, res, next) {
       );
     }
 
-    // ❌ Blocked check
-    // if (user.is_blocked) {
-    //   return res.status(403).json(
-    //     sendJson(false, 'Your account has been blocked. Please contact support.')
-    //   );
-    // }
+    // ✅ Check user status
+    switch (user.status) {
+      case 'pending':
+        return res.status(403).json(
+          sendJson(false, 'Your account is pending approval')
+        );
+      case 'rejected':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been rejected')
+        );
+      case 'blocked':
+        return res.status(403).json(
+          sendJson(false, 'Your account has been blocked. Please contact support')
+        );
+      case 'approved':
+      default:
+        // allow access
+        break;
+    }
 
     req.user = user;
     next();
   } catch (err) {
-    // Handle different JWT error cases
     let message = 'Invalid authentication token';
     if (err.name === 'TokenExpiredError') {
       message = 'Session expired, please login again';
@@ -42,9 +54,7 @@ module.exports = async function (req, res, next) {
     }
 
     return res.status(401).json(
-      sendJson(false, message, {
-        error: err.name
-      })
+      sendJson(false, message, { error: err.name })
     );
   }
 };

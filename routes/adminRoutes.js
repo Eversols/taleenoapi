@@ -15,9 +15,6 @@ router.post('/client', authController.getAllClients);
 router.post('/detailsUser', authController.detailsUser);
 router.post('/feeds', feedController.AdminFeed);
 router.post('/bookings', bookingController.AdminBookings);
-// routes/adminRoutes.js
 router.post('/bookingdetails', authMiddleware, bookingController.AdminBookingDetails);
-
-
-
+router.post('/updateUserStatus', authController.updateUserStatus);
 module.exports = router;
