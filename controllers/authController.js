@@ -1440,3 +1440,38 @@ exports.softDeleteUser = async (req, res) => {
       );
   }
 };
+exports.getDashboardCounts = async (req, res) => {
+  try {
+    // Count clients (including soft deleted)
+    const totalClients = await User.count({
+      where: { role: "client" },
+      paranoid: false, // count even if deleted_at is not null
+    });
+
+    // Count talents
+    const totalTalents = await User.count({
+      where: { role: "talent" },
+      paranoid: false, // count even if deleted_at is not null
+    });
+
+    // Count bookings
+    const totalBookings = await Booking.count({
+      paranoid: false,
+    });
+
+    return res.status(200).json(
+      sendJson(true, "Counts retrieved successfully", {
+        bookings: totalBookings,
+        talents: totalTalents,
+        clients: totalClients,
+      })
+    );
+  } catch (error) {
+    console.error("❌ Get Dashboard Counts Error:", error);
+    return res.status(500).json(
+      sendJson(false, "Failed to retrieve counts", {
+        error: error.message,
+      })
+    );
+  }
+};

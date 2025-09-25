@@ -18,5 +18,6 @@ router.post('/bookings', bookingController.AdminBookings);
 router.post('/bookingdetails', authMiddleware, bookingController.AdminBookingDetails);
 router.post('/updateUserStatus', authController.updateUserStatus);
 router.post('/softDeleteUser', authController.softDeleteUser);
+router.post('/getDashboardCounts', authController.getDashboardCounts);
 
 module.exports = router;
