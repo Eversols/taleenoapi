@@ -1412,22 +1412,30 @@ exports.softDeleteUser = async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) {
-      return res.status(400).json(sendJson(false, 'User ID is required'));
+      return res.status(400).json(sendJson(false, "User ID is required"));
     }
 
-    const user = await User.findByPk(userId);
+    // Include soft-deleted users
+    const user = await User.findByPk(userId, { paranoid: false });
     if (!user) {
-      return res.status(404).json(sendJson(false, 'User not found'));
+      return res.status(404).json(sendJson(false, "User not found"));
     }
 
-    // Soft delete
-    await user.destroy(); // sets deleted_at automatically
-
-    return res.json(sendJson(true, 'User soft deleted successfully', { userId }));
+    if (user.deleted_at) {
+      // ✅ Already soft-deleted → restore
+      await user.restore();
+      return res.json(sendJson(true, "User restored successfully", { userId }));
+    } else {
+      // ✅ Not deleted → soft delete
+      await user.destroy();
+      return res.json(sendJson(true, "User soft deleted successfully", { userId }));
+    }
   } catch (error) {
-    console.error(error);
-    return res.status(500).json(
-      sendJson(false, 'Failed to update user status', { error: error.message })
-    );
+    console.error("Toggle delete/restore error:", error);
+    return res
+      .status(500)
+      .json(
+        sendJson(false, "Failed to update user status", { error: error.message })
+      );
   }
 };
