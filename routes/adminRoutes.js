@@ -17,4 +17,6 @@ router.post('/feeds', feedController.AdminFeed);
 router.post('/bookings', bookingController.AdminBookings);
 router.post('/bookingdetails', authMiddleware, bookingController.AdminBookingDetails);
 router.post('/updateUserStatus', authController.updateUserStatus);
+router.post('/softDeleteUser', authController.softDeleteUser);
+
 module.exports = router;

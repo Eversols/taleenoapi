@@ -117,6 +117,9 @@ exports.verifyOTP = async (req, res) => {
     if (!user) {
       return res.status(400).json({ status: false, message: 'Invalid or expired OTP' });
     }
+    if (user.deletedAt) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
+    }
     switch (user.status) {
       case 'pending':
         return res.status(403).json(
@@ -235,6 +238,9 @@ exports.loginWithPhone = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
+    if (user.deleted_at) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
+    }
     switch (user.status) {
       case 'pending':
         return res.status(403).json(
@@ -298,7 +304,9 @@ exports.verifyLoginOTP = async (req, res) => {
         sendJson(false, 'Invalid or expired OTP')
       );
     }
-
+    if (user.deleted_at) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
+    }
     switch (user.status) {
       case 'pending':
         return res.status(403).json(
@@ -362,6 +370,9 @@ exports.resendOTP = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
+    if (user.deleted_at) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
+    }
     switch (user.status) {
       case 'pending':
         return res.status(403).json(
@@ -423,6 +434,9 @@ exports.getMe = async (req, res) => {
         sendJson(false, 'User not found')
       );
     }
+    if (user.deleted_at) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
+    }
     switch (user.status) {
       case 'pending':
         return res.status(403).json(
@@ -471,6 +485,9 @@ exports.updateProfile = async (req, res) => {
 
     if (!user) {
       return res.status(404).json(sendJson(false, 'User not found'));
+    }
+    if (user.deleted_at) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
     }
     switch (user.status) {
       case 'pending':
@@ -1002,6 +1019,7 @@ exports.getAllClients = async (req, res) => {
           attributes: { exclude: ["user_id", "createdAt", "updatedAt", "deleted_at"] },
         },
       ],
+      paranoid: false, // include soft-deleted users
     });
 
     if (!clients || clients.length === 0) {
@@ -1383,6 +1401,31 @@ exports.updateUserStatus = async (req, res) => {
 
   } catch (error) {
     console.error('Error updating user status:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to update user status', { error: error.message })
+    );
+  }
+};
+
+exports.softDeleteUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json(sendJson(false, 'User ID is required'));
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json(sendJson(false, 'User not found'));
+    }
+
+    // Soft delete
+    await user.destroy(); // sets deleted_at automatically
+
+    return res.json(sendJson(true, 'User soft deleted successfully', { userId }));
+  } catch (error) {
+    console.error(error);
     return res.status(500).json(
       sendJson(false, 'Failed to update user status', { error: error.message })
     );

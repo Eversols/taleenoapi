@@ -22,7 +22,9 @@ module.exports = async function (req, res, next) {
         sendJson(false, 'User account not found or inactive')
       );
     }
-
+    if (user.deleted_at) {
+      return res.status(400).json({ status: false, message: 'Unable to login: User is deleted' });
+    }
     // ✅ Check user status
     switch (user.status) {
       case 'pending':
