@@ -1070,6 +1070,7 @@ exports.getAllClients = async (req, res) => {
         on_board: u.on_board,
         notification_alert: u.notification_alert,
         availability: u.availability,
+        deleted_at: u.deleted_at,
         userInfo: {
           ...clientInfo,
           interests: clientInterests,
