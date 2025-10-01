@@ -26,6 +26,6 @@ router.post('/getDashboardCounts', authController.getDashboardCounts);
 // Protected routes — only logged-in users can create/update/delete
 router.get('/skill-All', authMiddleware, skillController.adminAll);
 router.post('/skill-create', authMiddleware, skillController.create);
-router.put('/skill-update:id', authMiddleware, skillController.update);
-router.delete('/skill-remove:id', authMiddleware, skillController.remove);
+router.put('/skill-update/:id', authMiddleware, skillController.update);
+router.delete('/skill-remove/:id', authMiddleware, skillController.remove);
 module.exports = router;
