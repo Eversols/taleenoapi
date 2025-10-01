@@ -145,6 +145,10 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'pending',
       comment: 'User account status: pending, approved, rejected, blocked'
     },
+     reason: {
+      type: DataTypes.STRING(20),
+      allowNull: true
+    },
 
   }, {
     sequelize,
