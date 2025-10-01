@@ -1,4 +1,5 @@
 const { ContactMessage } = require('../models');
+const { sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 
 exports.submit = async (req, res) => {
@@ -49,7 +50,6 @@ exports.submit = async (req, res) => {
 };
 exports.getMyList = async (req, res) => {
   try {
-    // Assume you have middleware that sets req.user
     const userId = req.user ? req.user.id : null;
 
     if (!userId) {
@@ -58,27 +58,58 @@ exports.getMyList = async (req, res) => {
       );
     }
 
-    // Optional pagination
+    // Pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    // Fetch only this user's records
-    const { rows, count } = await ContactMessage.findAndCountAll({
-      where: { user_id: userId },
-      offset,
-      limit,
-      order: [['createdAt', 'DESC']],
-    });
+    // Raw SQL query with JOIN
+    const [rows] = await sequelize.query(
+      `
+      SELECT 
+        cm.id,
+        cm.user_id,
+        cm.name AS contact_name,
+        cm.email AS contact_email,
+        cm.subject,
+        cm.message,
+        cm.createdAt,
+        cm.updatedAt,
+        u.username,
+        u.email AS user_email
+      FROM contactmessages cm
+      LEFT JOIN users u ON cm.user_id = u.id
+      WHERE cm.user_id = :userId
+      ORDER BY cm.createdAt DESC
+      LIMIT :limit OFFSET :offset
+      `,
+      {
+        replacements: { userId, limit, offset },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    // Count total records for this user
+    const [[{ total }]] = await sequelize.query(
+      `
+      SELECT COUNT(*) AS total 
+      FROM contactmessages 
+      WHERE user_id = :userId
+      `,
+      {
+        replacements: { userId },
+      }
+    );
 
     return res.status(200).json(
       sendJson(true, 'Your contact requests fetched successfully', {
-        total: count,
+        total,
         page,
         limit,
         data: rows,
       })
     );
+
   } catch (err) {
     console.error('Error fetching user contact requests:', err);
     return res.status(500).json(
