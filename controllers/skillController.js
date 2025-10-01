@@ -2,11 +2,11 @@ const { Skill } = require('../models');
 const { sendJson } = require('../utils/helpers');
 
 exports.create = async (req, res) => {
-  // if (req.user.role !== 'admin') {
-  //   return res.status(403).json(
-  //     sendJson(false, 'Forbidden: Admin access required')
-  //   );
-  // }
+  if (req.user.role !== 'admin') {
+    return res.status(403).json(
+      sendJson(false, 'Forbidden: Admin access required')
+    );
+  }
 
   const { name } = req.body;
   try {
@@ -38,12 +38,32 @@ exports.getAll = async (req, res) => {
   }
 };
 
+exports.adminAll = async (req, res) => {
+  try {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json(
+      sendJson(false, 'Forbidden: Admin access required')
+    );
+  }
+    const skills = await Skill.findAll();
+    return res.status(200).json(
+      sendJson(true, 'Skills retrieved successfully', { skills })
+    );
+  } catch (err) {
+    return res.status(500).json(
+      sendJson(false, 'Server error', {
+        error: err.message
+      })
+    );
+  }
+};
+
 exports.update = async (req, res) => {
-  // if (req.user.role !== 'admin') {
-  //   return res.status(403).json(
-  //     sendJson(false, 'Forbidden: Admin access required')
-  //   );
-  // }
+   if (req.user.role !== 'admin') {
+    return res.status(403).json(
+      sendJson(false, 'Forbidden: Admin access required')
+    );
+  }
 
   try {
     const { id } = req.params;
@@ -70,11 +90,11 @@ exports.update = async (req, res) => {
 };
 
 exports.remove = async (req, res) => {
-  // if (req.user.role !== 'admin') {
-  //   return res.status(403).json(
-  //     sendJson(false, 'Forbidden: Admin access required')
-  //   );
-  // }
+    if (req.user.role !== 'admin') {
+    return res.status(403).json(
+      sendJson(false, 'Forbidden: Admin access required')
+    );
+  }
 
   try {
     const { id } = req.params;
