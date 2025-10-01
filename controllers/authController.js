@@ -1373,7 +1373,7 @@ exports.detailsUser = async (req, res) => {
 };
 exports.updateUserStatus = async (req, res) => {
   try {
-    const { userId, status } = req.body;
+    const { userId, status ,reason} = req.body;
 
     if (!userId || !status) {
       return res.status(400).json(sendJson(false, 'User ID and status are required'));
@@ -1390,6 +1390,7 @@ exports.updateUserStatus = async (req, res) => {
     }
 
     user.status = status;
+    user.reason = reason;
     await user.save();
 
     // ✅ SendJson for every status
