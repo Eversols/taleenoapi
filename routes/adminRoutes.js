@@ -31,4 +31,5 @@ router.put('/skill-update/:id', authMiddleware, skillController.update);
 router.delete('/skill-remove/:id', authMiddleware, skillController.remove);
 
 router.get('/contactList', authMiddleware, contactController.getAdminList);
+router.delete("/contact/:id", authMiddleware, contactController.deleteContact);
 module.exports = router;

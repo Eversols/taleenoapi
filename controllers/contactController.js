@@ -186,3 +186,42 @@ exports.getAdminList = async (req, res) => {
 };
 
 
+exports.deleteContact = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json(
+        sendJson(false, "Contact ID is required")
+      );
+    }
+    
+    if (!req.user && req.user.role !== 'admin') {
+      return res.status(401).json(
+        sendJson(false, 'Unauthorized: User not logged in')
+      );
+    }
+    // Find the record
+    const contact = await ContactMessage.findByPk(id);
+
+    if (!contact) {
+      return res.status(404).json(
+        sendJson(false, "Contact message not found")
+      );
+    }
+
+    // Delete the record
+    await contact.destroy();
+
+    return res.status(200).json(
+      sendJson(true, "Contact message deleted successfully")
+    );
+  } catch (err) {
+    console.error("Error deleting contact message:", err);
+    return res.status(500).json(
+      sendJson(false, "Failed to delete contact message", {
+        error: err.message,
+      })
+    );
+  }
+};
