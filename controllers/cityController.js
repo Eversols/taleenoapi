@@ -79,6 +79,50 @@ exports.getAll = async (req, res) => {
   }
 };
 
+exports.AdmingetAll = async (req, res) => {
+  try {
+    const { country_id } = req.query;
+    
+    // Build the query conditions
+    const queryOptions = {
+      attributes: ['id', 'name', 'country_id','createdAt','updatedAt'],
+      order: [['name', 'ASC']],
+      include: [{
+        model: Country,
+        as: 'country',
+        attributes: ['name']
+      }]
+    };
+
+    // Only add where clause if country_id is provided
+    if (country_id) {
+      queryOptions.where = { country_id };
+    }
+
+    const cities = await City.findAll(queryOptions);
+    
+    // Prepare response data
+    const responseData = {
+      count: cities.length,
+      cities
+    };
+
+    // Add country_id to response if filtering was applied
+    if (country_id) {
+      responseData.filter = { country_id };
+    }
+
+    return res.status(200).json(
+      sendJson(true, 'Cities retrieved successfully', responseData)
+    );
+  } catch (err) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve cities', {
+        error: err.message
+      })
+    );
+  }
+};
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;

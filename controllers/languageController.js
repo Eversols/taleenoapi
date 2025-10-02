@@ -53,6 +53,26 @@ exports.getAll = async (req, res) => {
     );
   }
 };
+exports.admingetAll = async (req, res) => {
+  try {
+    const languages = await Language.findAll({
+      attributes: ['id', 'name','createdAt','updatedAt'], // Only return necessary fields
+      order: [['name', 'ASC']]   // Alphabetical order
+    });
+    
+    return res.status(200).json(
+      sendJson(true, 'Languages retrieved successfully', { 
+        languages 
+      })
+    );
+  } catch (err) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve languages', {
+        error: err.message
+      })
+    );
+  }
+};
 
 // Update (Admin only)
 exports.update = async (req, res) => {

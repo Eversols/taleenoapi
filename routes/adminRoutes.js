@@ -8,6 +8,9 @@ const feedController = require('../controllers/feedController');
 const bookingController = require('../controllers/bookingController');
 const skillController = require('../controllers/skillController');
 const contactController = require('../controllers/contactController');
+const languageController = require('../controllers/languageController');
+const cityController = require('../controllers/cityController');
+
 
 const authMiddleware = require('../middleware/auth');
 
@@ -29,7 +32,19 @@ router.get('/skill-All', authMiddleware, skillController.adminAll);
 router.post('/skill-create', authMiddleware, skillController.create);
 router.put('/skill-update/:id', authMiddleware, skillController.update);
 router.delete('/skill-remove/:id', authMiddleware, skillController.remove);
-
+// contact
 router.get('/contactList', authMiddleware, contactController.getAdminList);
 router.delete("/contact/:id", authMiddleware, contactController.deleteContact);
+// language
+router.get('/language', languageController.admingetAll);
+router.post('/language', authMiddleware, languageController.create);
+router.put('/language/:id', authMiddleware, languageController.update);
+router.delete('/language/:id', authMiddleware, languageController.remove);
+
+// city
+router.get('/city', authMiddleware, cityController.AdmingetAll);
+router.post('/city', authMiddleware, cityController.create);
+router.put('/city/:id', authMiddleware, cityController.update);
+router.delete('/city/:id', authMiddleware, cityController.remove);
+
 module.exports = router;
