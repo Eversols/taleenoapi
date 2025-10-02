@@ -7,6 +7,7 @@ const authController = require('../controllers/authController');
 const feedController = require('../controllers/feedController');
 const bookingController = require('../controllers/bookingController');
 const skillController = require('../controllers/skillController');
+const contactController = require('../controllers/contactController');
 
 const authMiddleware = require('../middleware/auth');
 
@@ -28,4 +29,6 @@ router.get('/skill-All', authMiddleware, skillController.adminAll);
 router.post('/skill-create', authMiddleware, skillController.create);
 router.put('/skill-update/:id', authMiddleware, skillController.update);
 router.delete('/skill-remove/:id', authMiddleware, skillController.remove);
+
+router.get('/contactList', authMiddleware, contactController.getAdminList);
 module.exports = router;
