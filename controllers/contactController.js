@@ -119,3 +119,70 @@ exports.getMyList = async (req, res) => {
     );
   }
 };
+
+exports.getAdminList = async (req, res) => {
+  try {
+    const userId = req.user ? req.user.id : null;
+
+    if (!userId) {
+      return res.status(401).json(
+        sendJson(false, 'Unauthorized: User not logged in')
+      );
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Fetch all records with JOIN
+    const rows = await sequelize.query(
+      `
+      SELECT 
+        cm.id,
+        cm.user_id,
+        cm.name AS contact_name,
+        cm.email AS contact_email,
+        cm.subject,
+        cm.message,
+        cm.createdAt,
+        cm.updatedAt,
+        u.username,
+        u.email AS user_email
+      FROM contactmessages cm
+      LEFT JOIN users u ON cm.user_id = u.id
+      ORDER BY cm.createdAt DESC
+      LIMIT :limit OFFSET :offset
+      `,
+      {
+        replacements: { limit, offset },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    // Count total records
+    const totalResult = await sequelize.query(
+      `SELECT COUNT(*) AS total FROM contactmessages`
+    );
+    const total = totalResult[0][0].total;
+
+    return res.status(200).json(
+      sendJson(true, 'All contact requests fetched successfully', {
+        total,
+        page,
+        limit,
+        data: rows,
+      })
+    );
+
+  } catch (err) {
+    console.error('Error fetching contact requests:', err);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch contact requests', {
+        error: err.message,
+      })
+    );
+  }
+};
+
+
