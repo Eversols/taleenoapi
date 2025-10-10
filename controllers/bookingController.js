@@ -380,6 +380,7 @@ exports.getBookingDetails = async (req, res) => {
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const role = req.user.role; // ✅ Use logged in user role
+    const userId = req.user.id; // ✅ Logged-in user ID (used for reschedule filter)
 
     // Use raw SQL query to fetch booking details
     const results = await sequelize.query(`
@@ -444,10 +445,10 @@ exports.getBookingDetails = async (req, res) => {
 
       if (skill) {
         SkillRate.rating = Number(skill.rate);
-      }
+      }     
     }
 
-
+    
     // ✅ Fetch only booked slots for this booking (no duplicates)
     const [bookedSlots] = await sequelize.query(`
       SELECT 
@@ -459,7 +460,7 @@ exports.getBookingDetails = async (req, res) => {
     `, { replacements: { booking_id: row.booking_id } });
     const groupedSlots = bookedSlots.reduce((acc, slot) => {
       let existing = acc.find(item => item.booking_date === slot.booking_date);
-      if (existing) {
+       if (existing) {
         existing.booking_times.push(slot.booking_time);
       } else {
         acc.push({
@@ -470,7 +471,7 @@ exports.getBookingDetails = async (req, res) => {
       return acc;
     }, []);
 
-    // Format time
+ // Format time
     let time = "12:00 AM";
     if (row.time_slot) {
       try {
@@ -528,7 +529,7 @@ exports.getBookingDetails = async (req, res) => {
         : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
       : null;
 
-    // ✅ Role based response formatting
+      // ✅ Role based response formatting
     let response;
     if (role === "talent") {
       response = {
@@ -542,7 +543,7 @@ exports.getBookingDetails = async (req, res) => {
         skill: row.skill_name || '',
         review_id: row.review_id || '',
         bookedSlots:groupedSlots, // unique slots for this booking
-         ...SkillRate
+        ...SkillRate
       };
     } else if (role === "client") {
       response = {
@@ -556,11 +557,38 @@ exports.getBookingDetails = async (req, res) => {
         skill: row.skill_name || '',
         review_id: row.review_id || '',
         bookedSlots:groupedSlots, // unique slots for this booking
-         ...SkillRate 
+        ...SkillRate
       };
     } else {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
     }
+    // 🔹 ADDITION STARTS HERE — show opposite party's reschedule request
+    const targetRole = role === 'talent' ? 'client' : 'talent';
+    const [rescheduleData] = await sequelize.query(`
+      SELECT 
+        id,
+        booking_id,
+        requested_by,
+        requested_user_id,
+        old_date,
+        old_time,
+        new_date,
+        new_time,
+        status,
+        remarks,
+        createdAt
+      FROM booking_reschedules
+      WHERE booking_id = :bookingId
+      AND requested_by = :targetRole
+      ORDER BY id DESC
+      LIMIT 1
+    `, {
+      replacements: { bookingId, targetRole },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    response.reschedule = rescheduleData || null;
+    // 🔹 ADDITION ENDS HERE
 
     return res.status(200).json(
       sendJson(true, 'Booking details retrieved successfully', response)
