@@ -64,7 +64,7 @@ exports.getMyList = async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Raw SQL query with JOIN
-    const [rows] = await sequelize.query(
+    const rows = await sequelize.query(
       `
       SELECT 
         cm.id,

@@ -1,4 +1,4 @@
-const { Booking, Client, Talent, User, Skill, Review ,BookingSlot} = require('../models');
+const { Booking, Client, Talent, User, Skill, Review ,BookingSlot ,BookingReschedule} = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const axios = require("axios");
@@ -1017,11 +1017,12 @@ exports.rescheduleBooking = async (req, res) => {
   try {
     const { booking_id, old_date, old_time, new_date, new_time } = req.body;
     const role = req.user.role;
+    const userId = req.user.id;
 
     if (!booking_id || !new_date || !new_time) {
       return res.status(400).json(
         sendJson(false, "booking_id, new_date and new_time are required")
-      );
+      ); 
     }
 
     // Find booking
@@ -1068,16 +1069,38 @@ exports.rescheduleBooking = async (req, res) => {
       return res.status(400).json(sendJson(false, "New slot already exists for this booking"));
     }
 
+    const existingRequest = await BookingReschedule.findOne({
+      where: {
+        booking_id,
+        requested_user_id: userId,
+        new_date,
+        status: 'pending'
+      }
+    });
+
+    if (existingRequest) {
+      return res.status(400).json(
+        sendJson(false, "You already have a pending reschedule request for this booking and date")
+      );
+    }
     // Update slot
-    slot.slot_date = new_date;
-    slot.slot = new_time;
-    await slot.save();
+    const reschedule = await BookingReschedule.create({
+      booking_id,
+      requested_by: role,
+      requested_user_id: userId,
+      old_date,
+      old_time,
+      new_date,
+      new_time,
+      status: 'pending'
+    });
 
     return res.status(200).json(
       sendJson(true, "Booking rescheduled successfully", {
         booking_id: booking.id,
         new_date,
         new_time,
+        request_status: reschedule.status,
       })
     );
 
@@ -1672,3 +1695,57 @@ exports.AdminBookingDetails = async (req, res) => {
   }
 };
 
+exports.approveReschedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const reschedule = await BookingReschedule.findByPk(id);
+    if (!reschedule) return res.status(404).json(sendJson(false, "Reschedule request not found"));
+
+    if (reschedule.status !== 'pending') {
+      return res.status(400).json(sendJson(false, "This request has already been processed"));
+    }
+
+    // ✅ Update slot in booking_slots table
+    const slot = await BookingSlot.findOne({
+      where: { booking_id: reschedule.booking_id, slot_date: reschedule.old_date, slot: reschedule.old_time }
+    });
+
+    if (slot) {
+      slot.slot_date = reschedule.new_date;
+      slot.slot = reschedule.new_time;
+      await slot.save();
+    }
+
+    // reschedule.status = 'accepted';
+    await reschedule.save();
+
+    return res.status(200).json(sendJson(true, "Reschedule approved successfully"));
+  } catch (error) {
+    console.error("Error approving reschedule:", error);
+    return res.status(500).json(sendJson(false, "Failed to approve reschedule", { error: error.message }));
+  }
+};
+
+exports.rejectReschedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body;
+
+    const reschedule = await BookingReschedule.findByPk(id);
+    if (!reschedule) return res.status(404).json(sendJson(false, "Reschedule request not found"));
+
+    if (reschedule.status !== 'pending') {
+      return res.status(400).json(sendJson(false, "This request has already been processed"));
+    }
+
+    reschedule.status = 'rejected';
+    reschedule.remarks = remarks || null;
+    await reschedule.save();
+
+    return res.status(200).json(sendJson(true, "Reschedule request rejected successfully"));
+  } catch (error) {
+    console.error("Error rejecting reschedule:", error);
+    return res.status(500).json(sendJson(false, "Failed to reject reschedule", { error: error.message }));
+  }
+};
