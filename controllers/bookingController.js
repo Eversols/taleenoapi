@@ -1726,6 +1726,8 @@ exports.AdminBookingDetails = async (req, res) => {
 exports.approveReschedule = async (req, res) => {
   try {
     const { id } = req.params;
+    const role = req.user.role;
+    const userId = req.user.id;
 
     const reschedule = await BookingReschedule.findByPk(id);
     if (!reschedule) return res.status(404).json(sendJson(false, "Reschedule request not found"));
@@ -1746,9 +1748,12 @@ exports.approveReschedule = async (req, res) => {
     }
 
     // reschedule.status = 'accepted';
+    reschedule.status = 'accepted';
+    reschedule.request_by = role;
+    reschedule.request_user_id = userId;
     await reschedule.save();
 
-    return res.status(200).json(sendJson(true, "Reschedule approved successfully"));
+return res.status(200).json(sendJson(true, "Reschedule approved successfully"));
   } catch (error) {
     console.error("Error approving reschedule:", error);
     return res.status(500).json(sendJson(false, "Failed to approve reschedule", { error: error.message }));
@@ -1759,6 +1764,8 @@ exports.rejectReschedule = async (req, res) => {
   try {
     const { id } = req.params;
     const { remarks } = req.body;
+    const role = req.user.role;
+    const userId = req.user.id;
 
     const reschedule = await BookingReschedule.findByPk(id);
     if (!reschedule) return res.status(404).json(sendJson(false, "Reschedule request not found"));
@@ -1769,9 +1776,11 @@ exports.rejectReschedule = async (req, res) => {
 
     reschedule.status = 'rejected';
     reschedule.remarks = remarks || null;
+    reschedule.request_by = role;
+    reschedule.request_user_id = userId;
     await reschedule.save();
 
-    return res.status(200).json(sendJson(true, "Reschedule request rejected successfully"));
+ return res.status(200).json(sendJson(true, "Reschedule request rejected successfully"));
   } catch (error) {
     console.error("Error rejecting reschedule:", error);
     return res.status(500).json(sendJson(false, "Failed to reject reschedule", { error: error.message }));
