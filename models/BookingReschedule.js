@@ -17,6 +17,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT.UNSIGNED,
       allowNull: false,
     },
+    request_by: {
+      type: DataTypes.ENUM('client', 'talent'),
+      allowNull: true,
+    },
+    request_user_id: {
+      type: DataTypes.BIGINT.UNSIGNED,
+      allowNull: true,
+    },
     old_date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
