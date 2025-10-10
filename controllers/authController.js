@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,Like,BookingSlot,sequelize} = require('../models');
+const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,Like,BookingSlot,Country,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 const path = require("path");
 const fs = require("fs");
@@ -473,7 +473,7 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, city, languages, hourly_rate, interests ,availability,skills} = req.body;
+    const { full_name, gender, age, country, city, languages, hourly_rate, interests ,availability,skills,about} = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -544,8 +544,8 @@ exports.updateProfile = async (req, res) => {
         city,
         languages:parsedLanguages,
         hourly_rate,
-        skills
-        // profile_photo
+        skills,
+        about
       });
     } else {
       await user.update({ on_board: 1 });
@@ -556,8 +556,8 @@ exports.updateProfile = async (req, res) => {
         country,
         city,
         interests,
-         languages:parsedLanguages,
-        // profile_photo
+        languages:parsedLanguages,
+        about
       });
     }
 
@@ -616,6 +616,11 @@ exports.updateProfile = async (req, res) => {
     let userInfo = req.user.role === 'talent' ? userData.talent : userData.client;
     if (req.user.role === 'client') userInfo.interests = clientInterests;
     if (req.user.role === 'talent') userInfo.skills = talentData;
+
+    if (userInfo.country) {
+      const countryRecord = await Country.findByPk(userInfo.country);
+      userInfo.country = countryRecord ? countryRecord.name : null;
+    }
 
     // ✅ Final shaped response
     const response = {
