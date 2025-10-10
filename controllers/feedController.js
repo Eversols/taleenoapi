@@ -5,7 +5,7 @@ const { Op } = require('sequelize');
 exports.getFeed = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL;
-    const { username, talent_type, location, price_range, skill_id } = req.query;
+    const { username, talent_type, location, price_range, skill_id, available_date, available_time } = req.query;
 
     const userWhere = { role: 'talent', is_blocked: 0 };
     if (username) userWhere.username = username;
@@ -66,7 +66,7 @@ exports.getFeed = async (req, res) => {
             where: talentWhere,
             attributes: [
               'id', 'full_name', 'city', 'country', 'profile_photo', 'video_url',
-              'main_talent', 'skills',
+              'main_talent', 'skills', 'availability',
               [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
               [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
               [sequelize.literal(`(SELECT type FROM likes l WHERE l.talent_id = talent.id ${req.user ? `AND l.user_id = ${req.user.id}` : ``} LIMIT 1)`), 'reaction'],
@@ -80,11 +80,43 @@ exports.getFeed = async (req, res) => {
 
       if (!user || !user.talent) continue;
       // ✅ Skip if availability is null
-      if (!user.availability) continue;
-
+      if (!user.talent.availability) continue;
+      
       // ✅ Skip blocked users again (extra check)
       if (blockedIds.includes(user.id)) continue;
 
+      // ✅ AVAILABILITY FILTER
+      if (available_date && available_time) {
+        const date = new Date(available_date);
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+        let isAvailable = false;
+        try {
+          const availData = JSON.parse(user.talent.availability);
+
+          // handle both array-style and object-style JSON
+          if (Array.isArray(availData)) {
+            for (const entry of availData) {
+              const [day, range] = Object.entries(entry)[0];
+              if (day === dayOfWeek && range.includes(available_time)) {
+                isAvailable = true;
+                break;
+              }
+            }
+          } else if (typeof availData === 'object') {
+            const slots = availData[dayOfWeek];
+            if (Array.isArray(slots)) {
+              isAvailable = slots.some(range => range.includes(available_time));
+            }
+          }
+        } catch (e) {
+          console.error('Availability parse error:', e.message);
+        }
+
+        if (!isAvailable) continue; // Skip if not available
+      }
+
+      // continue existing filters (skills, price, etc.)
       let talentSkills = user.talent.skills || [];
 
       // filter skill
@@ -115,7 +147,7 @@ exports.getFeed = async (req, res) => {
       const likesCount = await sequelize.models.MediaLike.count({
         where: { media_id: media.id }
       });
-      
+
       let isLiked = false;
       if (req.user) {
         const userLiked = await sequelize.models.MediaLike.findOne({

@@ -17,4 +17,7 @@ router.put("/reschedule", authenticate,bookingController.rescheduleBooking);
 router.post("/checkout", authenticate,bookingController.createCheckout);
 router.post("/TalentAvailability", authenticate,bookingController.TalentAvailability);
 router.get("/status", authenticate,bookingController.getPaymentStatus);
+
+router.put('/reschedule/approve/:id', authenticate, bookingController.approveReschedule);
+router.put('/reschedule/reject/:id', authenticate, bookingController.rejectReschedule);
 module.exports = router;
