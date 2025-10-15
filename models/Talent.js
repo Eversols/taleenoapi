@@ -57,6 +57,20 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: true
       }
     },
+    nationality: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      validate: {
+        notEmpty: true
+      }
+    },
+    location: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      validate: {
+        notEmpty: true
+      }
+    },
     city: {
       type: DataTypes.STRING(50),
       allowNull: true,

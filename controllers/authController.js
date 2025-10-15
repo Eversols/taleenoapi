@@ -473,7 +473,7 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, city, languages, hourly_rate, interests ,availability,skills,about} = req.body;
+    const { full_name, gender, age, country, location, nationality, city, languages, hourly_rate, interests ,availability,skills,about} = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -545,7 +545,9 @@ exports.updateProfile = async (req, res) => {
         languages:parsedLanguages,
         hourly_rate,
         skills,
-        about
+        about,
+        nationality,
+        location
       });
     } else {
       await user.update({ on_board: 1 });
@@ -557,7 +559,9 @@ exports.updateProfile = async (req, res) => {
         city,
         interests,
         languages:parsedLanguages,
-        about
+        about,
+        nationality,
+        location
       });
     }
 
@@ -621,7 +625,10 @@ exports.updateProfile = async (req, res) => {
       const countryRecord = await Country.findByPk(userInfo.country);
       userInfo.country = countryRecord ? countryRecord.name : null;
     }
-
+    if (userInfo.nationality) {
+      const nationalityRecord = await Country.findByPk(userInfo.nationality);
+      userInfo.nationality = nationalityRecord ? nationalityRecord.name : null;
+    }
     // ✅ Final shaped response
     const response = {
       id: userData.id,
