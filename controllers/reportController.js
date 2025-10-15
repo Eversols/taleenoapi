@@ -1,4 +1,4 @@
-const { Report, Booking ,UserReport,User} = require('../models');
+const { Report, Booking ,UserReport,User,sequelize} = require('../models');
 const { sendJson } = require('../utils/helpers');
 exports.submitReport = async (req, res) => {
   try {
@@ -121,6 +121,47 @@ exports.submitUser = async (req, res) => {
       sendJson(false, 'Failed to submit user report', {
         error: error.message
       })
+    );
+  }
+};
+exports.getMyReports = async (req, res) => {
+  try {
+    const reporter_id = req.user.id;
+
+    // 🧠 Raw query: join userreports with users table to get reported user info
+    const reports = await sequelize.query(`
+      SELECT 
+        ur.id,
+        ur.report_type,
+        ur.description,
+        ur.status,
+        ur.created_at,
+        u.id AS reported_user_id,
+        u.username AS reported_user_name,
+        u.email AS reported_user_email
+      FROM userreports ur
+      JOIN users u ON u.id = ur.user_id
+      WHERE ur.reporter_id = :reporter_id
+      ORDER BY ur.created_at DESC
+    `, {
+      replacements: { reporter_id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (!reports || reports.length === 0) {
+      return res.status(200).json(
+        sendJson(true, 'No reports submitted by you yet', { reports: [] })
+      );
+    }
+
+    return res.status(200).json(
+      sendJson(true, 'Reports fetched successfully', { reports })
+    );
+
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch reports', { error: error.message })
     );
   }
 };
