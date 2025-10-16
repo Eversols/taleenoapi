@@ -106,7 +106,7 @@ exports.getMyList = async (req, res) => {
         total,
         page,
         limit,
-        data: rows,
+        contactList: rows,
       })
     );
 
