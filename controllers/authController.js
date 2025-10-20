@@ -473,7 +473,10 @@ exports.getMe = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, gender, age, country, location, nationality, city, languages, hourly_rate, interests ,availability,skills,about} = req.body;
+    const { 
+      full_name, gender, age, country, location, nationality, city, 
+      languages, hourly_rate, interests, availability, skills, about 
+    } = req.body;
 
     const user = await User.findByPk(req.user.id, {
       include: [
@@ -534,6 +537,16 @@ exports.updateProfile = async (req, res) => {
         .map(Number);
     }
 
+    // ✅ Validate location/country/city depending on role
+    if (req.user.role === 'talent') {
+      if (!country || !city) {
+        return res.status(400).json(sendJson(false, 'Country and city are required for talent'));
+      }
+    } else if (req.user.role === 'client') {
+      if (!location) {
+        return res.status(400).json(sendJson(false, 'Location is required for client'));
+      }
+    }
 
     if (req.user.role === 'talent') {
       await user.talent.update({
@@ -597,15 +610,15 @@ exports.updateProfile = async (req, res) => {
       }));
     }
 
-        // 👉 Fetch all skills dictionary
+    // 👉 Fetch all skills dictionary
     const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
     const skillsMap = allSkills.reduce((acc, s) => {
       acc[s.id] = s.name;
       return acc;
     }, {});
 
-    // 👉 Attach skill names to talent
-    let talentData = [];
+// 👉 Attach skill names to talent
+let talentData = [];
     if (user.role === 'talent' && user.talent) {
       talentData = (user.talent.skills || []).map(s => ({
         id: s.id,
@@ -615,7 +628,7 @@ exports.updateProfile = async (req, res) => {
     }
 
     const userData = user.toJSON();
-
+    
     // ✅ Build unified userInfo
     let userInfo = req.user.role === 'talent' ? userData.talent : userData.client;
     if (req.user.role === 'client') userInfo.interests = clientInterests;
@@ -639,7 +652,7 @@ exports.updateProfile = async (req, res) => {
       is_verified: userData.is_verified,
       on_board: userData.on_board,
       notification_alert: userData.notification_alert,
-      followers: 0,   // replace with real DB count if needed
+followers: 0,   // replace with real DB count if needed
       followings: 1,  // replace with real DB count if needed
       availability: userData.availability,
       userInfo
@@ -650,7 +663,7 @@ exports.updateProfile = async (req, res) => {
     );
   } catch (error) {
     console.error(error);
-    return res.status(500).json(
+     return res.status(500).json(
       sendJson(false, 'Server error', { error: error.message })
     );
   }
