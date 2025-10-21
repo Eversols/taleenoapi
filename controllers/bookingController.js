@@ -34,12 +34,13 @@ function parseAvailability(value) {
   }
 }
 
+
 exports.getBookings = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     const userId = req.user.id;
     const role = req.user.role;
-    const searchDate = req.query.date || null; // Only YYYY-MM-DD, valid MySQL date
+    const searchDate = req.query.date || null; // Only YYYY-MM-DD
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
@@ -63,26 +64,14 @@ exports.getBookings = async (req, res) => {
           c.id AS client_id,
           c.full_name AS client_full_name,
           c.profile_photo AS client_profile_photo,
-          c.gender AS client_gender,
           cc.name AS client_city_name,
           ctryc.name AS client_country_name,
-
-          uc.id AS client_user_id,
-          uc.username AS client_username,
-          uc.email AS client_email,
-          uc.phone_number AS client_phone_number,
 
           t.id AS talent_id,
           t.full_name AS talent_full_name,
           t.hourly_rate AS talent_hourly_rate,
           tcc.name AS talent_city_name,
           tctry.name AS talent_country_name,
-          t.availability AS availability,
-
-          ut.id AS talent_user_id,
-          ut.username AS talent_username,
-          ut.email AS talent_email,
-          ut.phone_number AS talent_phone_number,
 
           s.id AS skill_id,
           s.name AS skill_name,
@@ -91,9 +80,7 @@ exports.getBookings = async (req, res) => {
 
         FROM bookings b
         LEFT JOIN clients c ON b.client_id = c.id
-        LEFT JOIN users uc ON c.user_id = uc.id
         LEFT JOIN talents t ON b.talent_id = t.id
-        LEFT JOIN users ut ON t.user_id = ut.id
         LEFT JOIN skills s ON b.skill_id = s.id
         LEFT JOIN cities cc ON c.city = cc.id
         LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
@@ -132,14 +119,8 @@ exports.getBookings = async (req, res) => {
           c.id AS client_id,
           c.full_name AS client_full_name,
           c.profile_photo AS client_profile_photo,
-          c.gender AS client_gender,
           cc.name AS client_city_name,
           ctryc.name AS client_country_name,
-
-          uc.id AS client_user_id,
-          uc.username AS client_username,
-          uc.email AS client_email,
-          uc.phone_number AS client_phone_number,
 
           t.id AS talent_id,
           t.full_name AS talent_full_name,
@@ -147,12 +128,6 @@ exports.getBookings = async (req, res) => {
           t.hourly_rate AS talent_hourly_rate,
           tcc.name AS talent_city_name,
           tctry.name AS talent_country_name,
-          t.availability AS availability,
-
-          ut.id AS talent_user_id,
-          ut.username AS talent_username,
-          ut.email AS talent_email,
-          ut.phone_number AS talent_phone_number,
 
           s.id AS skill_id,
           s.name AS skill_name,
@@ -161,9 +136,7 @@ exports.getBookings = async (req, res) => {
 
         FROM bookings b
         LEFT JOIN clients c ON b.client_id = c.id
-        LEFT JOIN users uc ON c.user_id = uc.id
         LEFT JOIN talents t ON b.talent_id = t.id
-        LEFT JOIN users ut ON t.user_id = ut.id
         LEFT JOIN skills s ON b.skill_id = s.id
         LEFT JOIN cities cc ON c.city = cc.id
         LEFT JOIN countries ctryc ON cc.country_id = ctryc.id
@@ -197,65 +170,72 @@ exports.getBookings = async (req, res) => {
     let totalHour = 0;
     let totalRate = 0;
 
-    const Bookings = results.map(row => {
-      const rate = parseFloat(row.talent_hourly_rate) || 0;
-      totalHour += 1;
-      totalRate += rate;
+    const Bookings = await Promise.all(
+      results.map(async row => {
+        const rate = parseFloat(row.talent_hourly_rate) || 0;
+        totalHour += 1;
+        totalRate += rate;
 
-      const booking_date = row.created_at
-        ? new Date(row.created_at).toISOString().split('T')[0]
-        : null;
+        const booking_date = row.created_at
+          ? new Date(row.created_at).toISOString().split('T')[0]
+          : null;
 
-      // ✅ Format location like in getBookingDetails
-      let location = "";
-      if (role === "talent" && row.client_city_name && row.client_country_name) {
-        location = `${row.talent_country_name}, ${row.talent_city_name}`;
-      } else if (role === "client" && row.talent_city_name && row.talent_country_name) {
-        location = `${row.talent_country_name}, ${row.talent_city_name}`;
-      }
+        let location = "";
+        if (row.talent_city_name && row.talent_country_name) {
+          location = `${row.talent_country_name}, ${row.talent_city_name}`;
+        }
 
-      return {
-        booking_id: row.booking_id,
-        booking_date,
-        booking_time: row.time_slot || '',
-        status: row.status || 'pending',
-        description: row.note || '',
-        rating: row.rating || null,
-        skill_name: row.skill_name || '',
-        location, // ✅ proper location added
+        const [bookedSlots] = await sequelize.query(`
+          SELECT 
+            bs.slot_date AS booking_date,
+            bs.slot AS booking_time
+          FROM booking_slots bs
+          WHERE bs.booking_id = :booking_id
+          ORDER BY bs.slot_date ASC, bs.slot ASC
+        `, { replacements: { booking_id: row.booking_id } });
 
-        ...(role === "talent"
-          ? {
-              client_name: row.client_full_name || '',
-              client_country: row.client_country || '',
-              client_profile_photo: row.client_profile_photo
-                ? (row.client_profile_photo.startsWith('http')
-                    ? row.client_profile_photo
-                    : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
-                : null,
-            }
-          : {
-              talent_name: row.talent_full_name || '',
-              talent_profile_photo: row.client_profile_photo
-                ? (row.client_profile_photo.startsWith('http')
-                    ? row.client_profile_photo
-                    : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
-                : null,
-            })
-      };
-    });
+        return {
+          booking_id: row.booking_id,
+          booking_date,
+          booking_time: row.time_slot || '',
+          status: row.status || 'pending',
+          description: row.note || '',
+          rating: row.rating || null,
+          skill_name: row.skill_name || '',
+          location,
+          bookedSlots, // ✅ properly returned
+          ...(role === "talent"
+            ? {
+                client_name: row.client_full_name || '',
+                client_profile_photo: row.client_profile_photo
+                  ? (row.client_profile_photo.startsWith('http')
+                      ? row.client_profile_photo
+                      : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
+                  : null,
+              }
+            : {
+                talent_name: row.talent_full_name || '',
+                talent_profile_photo: row.talent_profile_photo
+                  ? (row.talent_profile_photo.startsWith('http')
+                      ? row.talent_profile_photo
+                      : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`)
+                  : null,
+              })
+        };
+      })
+    );
 
     const bookings = {
       totaltask: Bookings.length,
       totalHour,
-      rating: Bookings.length > 0 ? (Bookings[0].rating || 0) : 0,
+      rating: Bookings.length > 0 ? Bookings[0].rating || 0 : 0,
       booking: Bookings.map(b => ({
         skillname: b.skill_name,
         location: b.location,
         status: b.status,
-        time: b.booking_time,
+        date: b.bookedSlots.length > 0 ? b.bookedSlots[0].booking_time : null,
         day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
-        date: b.booking_date,
+        date: b.bookedSlots.length > 0 ? b.bookedSlots[0].booking_date : null,
         description: b.description,
         bookingid: b.booking_id,
         profilePhoto: role === "talent" ? b.client_profile_photo : b.talent_profile_photo,
@@ -276,6 +256,9 @@ exports.getBookings = async (req, res) => {
     );
   }
 };
+
+
+
 
 exports.createBooking = async (req, res) => {
   try {
@@ -368,6 +351,7 @@ exports.createBooking = async (req, res) => {
 
 
 // Add this new controller function to your bookings controller file
+
 exports.getBookingDetails = async (req, res) => {
   try {
     const { bookingId } = req.body;
@@ -460,7 +444,7 @@ exports.getBookingDetails = async (req, res) => {
     `, { replacements: { booking_id: row.booking_id } });
     const groupedSlots = bookedSlots.reduce((acc, slot) => {
       let existing = acc.find(item => item.booking_date === slot.booking_date);
-       if (existing) {
+      if (existing) {
         existing.booking_times.push(slot.booking_time);
       } else {
         acc.push({
@@ -470,6 +454,52 @@ exports.getBookingDetails = async (req, res) => {
       }
       return acc;
     }, []);
+
+    // 🧠 Function to merge continuous time slots for each day
+    function mergeContinuousSlots(times) {
+      if (!times || times.length === 0) return [];
+
+      const sorted = [...times].sort((a, b) => {
+        const [startA] = a.split(' - ');
+        const [startB] = b.split(' - ');
+        return startA.localeCompare(startB);
+      });
+
+      const merged = [];
+      let currentStart = null;
+      let currentEnd = null;
+
+      for (let i = 0; i < sorted.length; i++) {
+        const [start, end] = sorted[i].split(' - ');
+
+        if (!currentStart) {
+          currentStart = start;
+          currentEnd = end;
+          continue;
+        }
+
+        // If current slot starts exactly at the previous end → merge it
+        if (start === currentEnd) {
+          currentEnd = end;
+        } else {
+          // Push completed range
+          merged.push(`${currentStart} - ${currentEnd}`);
+          currentStart = start;
+          currentEnd = end;
+        }
+      }
+
+      // Push last one
+      merged.push(`${currentStart} - ${currentEnd}`);
+
+      return merged;
+    }
+
+    // 🧩 Apply merging logic per date
+    const formattedSlots = groupedSlots.map(group => ({
+      booking_date: group.booking_date,
+      booking_times: mergeContinuousSlots(group.booking_times)
+    }));
 
  // Format time
     let time = "12:00 AM";
@@ -542,7 +572,7 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots:groupedSlots, // unique slots for this booking
+        bookedSlots:formattedSlots, // unique slots for this booking
         ...SkillRate
       };
     } else if (role === "client") {
@@ -556,7 +586,7 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots:groupedSlots, // unique slots for this booking
+        bookedSlots:formattedSlots, // unique slots for this booking
         ...SkillRate
       };
     } else {
@@ -601,6 +631,7 @@ exports.getBookingDetails = async (req, res) => {
     );
   }
 };
+
 
 exports.updateBookingStatus = async (req, res) => {
   try {
@@ -1100,38 +1131,58 @@ exports.rescheduleBooking = async (req, res) => {
     }
 
     // ✅ Check for existing pending reschedule
-    const [existingRequest] = await sequelize.query(
+    const [existingRejectedRequest] = await sequelize.query(
       `SELECT id FROM booking_reschedules 
-       WHERE booking_id = ? AND requested_user_id = ? 
-       AND new_date = ? AND status = 'pending' LIMIT 1`,
-      { replacements: [booking_id, userId, new_date], type: sequelize.QueryTypes.SELECT }
+       WHERE booking_id = ? 
+         AND requested_user_id = ? 
+         AND requested_by = ?
+         AND status = 'rejected'
+       ORDER BY id DESC
+       LIMIT 1`,
+      { replacements: [booking_id, userId, role], type: sequelize.QueryTypes.SELECT }
     );
 
-    if (existingRequest) {
-      return res.status(400).json(
-        sendJson(false, "You already have a pending reschedule request for this booking and date")
+    if (existingRejectedRequest) {
+      // 🔁 Update only rejected record
+      await sequelize.query(
+        `UPDATE booking_reschedules
+         SET old_date = ?, old_time = ?, new_date = ?, new_time = ?, status = 'pending'
+         WHERE id = ?`,
+        { replacements: [old_date, old_time, new_date, new_time, existingRejectedRequest.id] }
+      );
+
+      return res.status(200).json(
+        sendJson(true, "Rejected booking reschedule request updated successfully", {
+          booking_id,
+          old_date,
+          old_time,
+          new_date,
+          new_time,
+          status: "pending",
+        })
+      );
+    } else {
+      
+      // ✅ Insert new reschedule request (no created_at / updated_at)
+      await sequelize.query(
+        `INSERT INTO booking_reschedules 
+          (booking_id, requested_by, requested_user_id, old_date, old_time, new_date, new_time, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        { replacements: [booking_id, role, userId, old_date, old_time, new_date, new_time] }
+      );
+
+// ✅ Success response
+      return res.status(200).json(
+        sendJson(true, "Booking reschedule request created successfully", {
+          booking_id,
+          old_date,
+          old_time,
+          new_date,
+          new_time,
+          status: "pending",
+        })
       );
     }
-
-    // ✅ Insert new reschedule request (no created_at / updated_at)
-    await sequelize.query(
-      `INSERT INTO booking_reschedules 
-        (booking_id, requested_by, requested_user_id, old_date, old_time, new_date, new_time, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      { replacements: [booking_id, role, userId, old_date, old_time, new_date, new_time] }
-    );
-
-    // ✅ Success response
-    return res.status(200).json(
-      sendJson(true, "Booking reschedule request created successfully", {
-        booking_id,
-        old_date,
-        old_time,
-        new_date,
-        new_time,
-        status: "pending",
-      })
-    );
 
   } catch (error) {
     console.error("Error rescheduling booking:", error);
