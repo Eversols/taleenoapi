@@ -1062,56 +1062,73 @@ exports.MyBookingSlotsForClient = async (req, res) => {
     );
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 exports.rescheduleBooking = async (req, res) => {
   try {
     const { booking_id, new_date, new_time } = req.body;
     const role = req.user.role;
     const userId = req.user.id;
 
+    // 🛑 Validate required fields
     if (!booking_id || !new_date || !new_time) {
-      return res.status(400).json(
-        sendJson(false, "booking_id, new_date, and new_time are required")
-      );
+      return res
+        .status(400)
+        .json(sendJson(false, "booking_id, new_date, and new_time are required"));
     }
 
-    // ✅ Get booking info + old slot data
-    const [bookingData] = await sequelize.query(
-      `SELECT 
+    // 🟢 Get booking info (old slot)
+    const bookingData = await sequelize.query(
+      `
+      SELECT 
           b.id AS booking_id,
           b.client_id,
           b.talent_id,
           s.slot_date AS old_date,
           s.slot AS old_time
-       FROM bookings AS b
-       JOIN booking_slots AS s ON s.booking_id = b.id
-       WHERE b.id = ?
-       LIMIT 1`,
+      FROM bookings AS b
+      JOIN booking_slots AS s ON s.booking_id = b.id
+      WHERE b.id = ?
+      LIMIT 1
+      `,
       { replacements: [booking_id], type: sequelize.QueryTypes.SELECT }
     );
 
-    if (!bookingData) {
+    if (!bookingData.length) {
       return res.status(404).json(sendJson(false, "Booking not found"));
     }
 
-    const { old_date, old_time, client_id, talent_id } = bookingData;
+    const { old_date, old_time, client_id, talent_id } = bookingData[0];
 
-    // ✅ Authorization check
-    let owner;
+    // 🟢 Role-based ownership check
+    let owner = null;
     if (role === "client") {
-      [owner] = await sequelize.query(
+      const client = await sequelize.query(
         `SELECT id FROM clients WHERE user_id = ? LIMIT 1`,
         { replacements: [userId], type: sequelize.QueryTypes.SELECT }
       );
-
+      owner = client[0];
       if (!owner || client_id !== owner.id) {
         return res.status(403).json(sendJson(false, "Not authorized to reschedule this booking"));
       }
     } else if (role === "talent") {
-      [owner] = await sequelize.query(
+      const talent = await sequelize.query(
         `SELECT id FROM talents WHERE user_id = ? LIMIT 1`,
         { replacements: [userId], type: sequelize.QueryTypes.SELECT }
       );
-
+      owner = talent[0];
       if (!owner || talent_id !== owner.id) {
         return res.status(403).json(sendJson(false, "Not authorized to reschedule this booking"));
       }
@@ -1119,10 +1136,16 @@ exports.rescheduleBooking = async (req, res) => {
       return res.status(403).json(sendJson(false, "Invalid role"));
     }
 
-    // ✅ Check if the new slot already exists
+    // 🟢 Prevent duplicate slot for the same booking
     const [existingSlot] = await sequelize.query(
-      `SELECT id FROM booking_slots 
-       WHERE booking_id = ? AND slot_date = ? AND slot = ? LIMIT 1`,
+      `
+      SELECT id 
+      FROM booking_slots 
+      WHERE booking_id = ? 
+        AND slot_date = ? 
+        AND slot = ? 
+      LIMIT 1
+      `,
       { replacements: [booking_id, new_date, new_time], type: sequelize.QueryTypes.SELECT }
     );
 
@@ -1130,67 +1153,83 @@ exports.rescheduleBooking = async (req, res) => {
       return res.status(400).json(sendJson(false, "New slot already exists for this booking"));
     }
 
-    // ✅ Check for existing pending reschedule
+    // 🟢 Check if there’s already a rejected reschedule request
     const [existingRejectedRequest] = await sequelize.query(
-      `SELECT id FROM booking_reschedules 
-       WHERE booking_id = ? 
-         AND requested_user_id = ? 
-         AND requested_by = ?
-         AND status = 'rejected'
-       ORDER BY id DESC
-       LIMIT 1`,
+      `
+      SELECT id 
+      FROM booking_reschedules 
+      WHERE booking_id = ? 
+        AND requested_user_id = ? 
+        AND requested_by = ?
+        AND status = 'rejected'
+      ORDER BY id DESC
+      LIMIT 1
+      `,
       { replacements: [booking_id, userId, role], type: sequelize.QueryTypes.SELECT }
     );
 
-    if (existingRejectedRequest) {
-      // 🔁 Update only rejected record
-      await sequelize.query(
-        `UPDATE booking_reschedules
-         SET old_date = ?, old_time = ?, new_date = ?, new_time = ?, status = 'pending'
-         WHERE id = ?`,
-        { replacements: [old_date, old_time, new_date, new_time, existingRejectedRequest.id] }
-      );
+    // Use transaction for safety (to ensure consistent DB state)
+    const transaction = await sequelize.transaction();
 
-      return res.status(200).json(
-        sendJson(true, "Rejected booking reschedule request updated successfully", {
-          booking_id,
-          old_date,
-          old_time,
-          new_date,
-          new_time,
-          status: "pending",
-        })
-      );
-    } else {
-      
-      // ✅ Insert new reschedule request (no created_at / updated_at)
-      await sequelize.query(
-        `INSERT INTO booking_reschedules 
-          (booking_id, requested_by, requested_user_id, old_date, old_time, new_date, new_time, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-        { replacements: [booking_id, role, userId, old_date, old_time, new_date, new_time] }
-      );
+    try {
+      if (existingRejectedRequest) {
+        // 🔁 Update rejected reschedule to pending again
+        await sequelize.query(
+          `
+          UPDATE booking_reschedules
+          SET old_date = ?, old_time = ?, new_date = ?, new_time = ?, status = 'pending', updatedAt = NOW()
+          WHERE id = ?
+          `,
+          {
+            replacements: [old_date, old_time, new_date, new_time, existingRejectedRequest.id],
+            transaction,
+          }
+        );
+      } else {
+        // ➕ Create new pending reschedule
+        await sequelize.query(
+          `
+          INSERT INTO booking_reschedules 
+            (booking_id, requested_by, requested_user_id, old_date, old_time, new_date, new_time, status, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+          `,
+          {
+            replacements: [booking_id, role, userId, old_date, old_time, new_date, new_time],
+            transaction,
+          }
+        );
+      }
 
-// ✅ Success response
-      return res.status(200).json(
-        sendJson(true, "Booking reschedule request created successfully", {
-          booking_id,
-          old_date,
-          old_time,
-          new_date,
-          new_time,
-          status: "pending",
-        })
-      );
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
     }
 
-  } catch (error) {
-    console.error("Error rescheduling booking:", error);
-    return res.status(500).json(
-      sendJson(false, "Failed to reschedule booking", { error: error.message })
+    // 🟢 Final response
+    return res.status(200).json(
+      sendJson(true, "Booking reschedule request created/updated successfully", {
+        booking_id,
+        old_date,
+        old_time,
+        new_date,
+        new_time,
+        status: "pending",
+      })
     );
+  } catch (error) {
+    console.error("❌ Error rescheduling booking:", error);
+    return res
+      .status(500)
+      .json(sendJson(false, "Failed to reschedule booking", { error: error.message }));
   }
 };
+
+
+
+
+
+
 
 
 
