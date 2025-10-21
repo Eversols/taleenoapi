@@ -1,4 +1,4 @@
-const { User, Skill, Media, Block, sequelize } = require('../models');
+const { User, Skill, Media, Block, City,sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -86,27 +86,78 @@ exports.getFeed = async (req, res) => {
       if (blockedIds.includes(user.id)) continue;
 
       // ✅ AVAILABILITY FILTER
-      if (available_date && available_time) {
-        const date = new Date(available_date);
-        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+      if (available_date || available_time) {
+        const date = available_date ? new Date(available_date) : null;
+        const dayOfWeek = date ? date.toLocaleDateString('en-US', { weekday: 'long' }) : null;
 
         let isAvailable = false;
+
         try {
           const availData = JSON.parse(user.talent.availability);
 
-          // handle both array-style and object-style JSON
+          // ⏰ Helper function — check if two time ranges overlap
+          const timesOverlap = (searchTime, range) => {
+            // Normalize time formats: remove spaces and leading zeros
+            const normalize = t => t.replace(/\s+/g, '').replace(/^0/, '');
+
+            const [searchStart, searchEnd] = normalize(searchTime).split('-');
+            const [rangeStart, rangeEnd] = normalize(range).split('-');
+
+            // Convert to minutes for easy comparison
+            const toMinutes = t => {
+              const [h, m] = t.split(':').map(Number);
+              return h * 60 + (m || 0);
+            };
+
+            const sStart = toMinutes(searchStart);
+            const sEnd = toMinutes(searchEnd);
+            const rStart = toMinutes(rangeStart);
+            const rEnd = toMinutes(rangeEnd);
+
+            // Check overlap (partial or exact)
+            return sStart < rEnd && sEnd > rStart;
+          };
+
+          // ✅ Handle both array-style and object-style availability
           if (Array.isArray(availData)) {
             for (const entry of availData) {
-              const [day, range] = Object.entries(entry)[0];
-              if (day === dayOfWeek && range.includes(available_time)) {
+              const [day, ranges] = Object.entries(entry)[0];
+
+              // Both filters
+              if (available_date && available_time) {
+                if (day === dayOfWeek && ranges.some(r => timesOverlap(available_time, r))) {
+                  isAvailable = true;
+                  break;
+                }
+              }
+              // Date only
+              else if (available_date && day === dayOfWeek) {
+                isAvailable = true;
+                break;
+              }
+              // Time only
+              else if (available_time && ranges.some(r => timesOverlap(available_time, r))) {
                 isAvailable = true;
                 break;
               }
             }
           } else if (typeof availData === 'object') {
-            const slots = availData[dayOfWeek];
-            if (Array.isArray(slots)) {
-              isAvailable = slots.some(range => range.includes(available_time));
+            // Both filters
+            if (available_date && available_time && dayOfWeek) {
+              const slots = availData[dayOfWeek];
+              if (Array.isArray(slots)) {
+                isAvailable = slots.some(r => timesOverlap(available_time, r));
+              }
+            }
+            // Date only
+            else if (available_date && dayOfWeek && availData[dayOfWeek]) {
+              isAvailable = true;
+            }
+            // Time only
+            else if (available_time) {
+              isAvailable = Object.values(availData).some(slots =>
+                Array.isArray(slots) && slots.some(r => timesOverlap(available_time, r))
+              );
             }
           }
         } catch (e) {
@@ -171,8 +222,12 @@ exports.getFeed = async (req, res) => {
           username: user.username,
           full_name: user.talent?.full_name || null,
           talent_type: user.talent?.main_talent || null,
-          location: `${user.talent?.city || ''}, ${user.talent?.country || ''}`,
-          city: user.talent?.city || null,
+          location: `${user.talent?.city
+          ? (await City.findByPk(user.talent.city))?.name || null
+          : null }, ${user.talent?.country || ''}`,
+          city: user.talent?.city
+          ? (await City.findByPk(user.talent.city))?.name || null
+          : null,
           country: user.talent?.country || null,
           profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
           video_url: user.talent?.video_url || null,
