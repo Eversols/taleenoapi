@@ -94,7 +94,7 @@ exports.getBookings = async (req, res) => {
         ) r ON r.booking_id = b.id
         WHERE t.user_id = :userId
         ${whereClause}
-        ORDER BY b.created_at DESC
+        ORDER BY b.id DESC
         LIMIT :limit OFFSET :offset
       `, { replacements: { userId, searchDate, limit, offset } });
 
@@ -150,7 +150,7 @@ exports.getBookings = async (req, res) => {
         ) r ON r.booking_id = b.id
         WHERE c.user_id = :userId
         ${whereClause}
-        ORDER BY b.created_at DESC
+        ORDER BY b.id DESC
         LIMIT :limit OFFSET :offset
       `, { replacements: { userId, searchDate, limit, offset } });
 
@@ -175,6 +175,23 @@ exports.getBookings = async (req, res) => {
         const rate = parseFloat(row.talent_hourly_rate) || 0;
         totalHour += 1;
         totalRate += rate;
+
+        const [talent] = await sequelize.query(
+          `SELECT skills FROM talents WHERE id = :id LIMIT 1`,
+          { replacements: { id: row.talent_id }, type: sequelize.QueryTypes.SELECT }
+        );
+
+        if (talent && talent.skills) {
+          try {
+            const skills = JSON.parse(talent.skills);
+            const skillData = skills.find(s => s.id === row.skill_id);
+            if (skillData && skillData.rate) {
+              rate = parseFloat(skillData.rate);
+            }
+          } catch (err) {
+            console.error("Error parsing skills JSON:", err.message);
+          }
+        }
 
         const booking_date = row.created_at
           ? new Date(row.created_at).toISOString().split('T')[0]
@@ -203,7 +220,8 @@ exports.getBookings = async (req, res) => {
           rating: row.rating || null,
           skill_name: row.skill_name || '',
           location,
-          bookedSlots, // ✅ properly returned
+          rate,
+          bookedSlots,
           ...(role === "talent"
             ? {
                 client_name: row.client_full_name || '',
@@ -232,10 +250,10 @@ exports.getBookings = async (req, res) => {
       booking: Bookings.map(b => ({
         skillname: b.skill_name,
         location: b.location,
+        price: b.rate,
         status: b.status,
-        date: b.bookedSlots.length > 0 ? b.bookedSlots[0].booking_time : null,
-        day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
         date: b.bookedSlots.length > 0 ? b.bookedSlots[0].booking_date : null,
+        day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
         description: b.description,
         bookingid: b.booking_id,
         profilePhoto: role === "talent" ? b.client_profile_photo : b.talent_profile_photo,
@@ -256,6 +274,7 @@ exports.getBookings = async (req, res) => {
     );
   }
 };
+
 
 
 
