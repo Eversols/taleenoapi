@@ -439,17 +439,39 @@ exports.getBookingDetails = async (req, res) => {
     const row = results[0];
     const talent = await Talent.findByPk(row.talent_id);
 
-    // ✅ Define media object to avoid ReferenceError
+    let rate = 0; // ✅ Declare rate before using
     const SkillRate = {};
-
+    // ✅ Check if skills exist and are valid
     if (talent && Array.isArray(talent.skills)) {
-      // find the skill object inside array where id matches row.skill_id
       const skill = talent.skills.find(s => Number(s.id) === Number(row.skill_id));
-
-      if (skill) {
-        SkillRate.rating = Number(skill.rate);
-      }     
+      if (skill && skill.rate) {
+        rate = Number(skill.rate);
+      }
     }
+
+    // ✅ Fallback: fetch skills from DB if not found in talent object
+    if (!rate) {
+      const [talentonly] = await sequelize.query(
+        `SELECT skills FROM talents WHERE id = :id LIMIT 1`,
+        { replacements: { id: row.talent_id }, type: sequelize.QueryTypes.SELECT }
+      );
+
+      if (talentonly && talentonly.skills) {
+        try {
+          const skills = JSON.parse(talentonly.skills);
+          const skillData = skills.find(s => Number(s.id) === Number(row.skill_id));
+          if (skillData && skillData.rate) {
+            rate = parseFloat(skillData.rate);
+            SkillRate.rating = rate;
+          }
+          
+        } catch (err) {
+          console.error("Error parsing skills JSON:", err.message);
+        }
+      }
+    }
+
+    
 
     
     // ✅ Fetch only booked slots for this booking (no duplicates)
@@ -584,6 +606,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id : row.client_user_id,
+        price : (rate || 0) * (formattedSlots ? formattedSlots.length : 0),
         location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         status: row.status || 'pending',
         username: row.client_full_name || '',
@@ -598,6 +621,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id : row.talent_user_id,
+        price : (rate || 0) * (formattedSlots ? formattedSlots.length : 0),
         location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         status: row.status || 'pending',
         username: row.talent_full_name || '',
