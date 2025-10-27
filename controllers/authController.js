@@ -1502,3 +1502,139 @@ exports.getDashboardCounts = async (req, res) => {
   }
   
 };
+exports.switchAccount = async (req, res) => {
+  try {
+    const userId = req.user.id; // ✅ fix: proper way to get current user ID
+
+    const currentUser = await User.findByPk(userId, {
+      include: [
+        {
+          association: 'talent',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        },
+        {
+          association: 'client',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        }
+      ]
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ status: false, message: 'User not found' });
+    }
+
+    // ✅ Extract base number from username or phone_number
+    const baseValue = currentUser.username.split('-')[0]; // 8904
+    const oppositeRole = currentUser.role === 'talent' ? 'client' : 'talent';
+
+    // ✅ Find the opposite account by phone_number (not username)
+    const oppositeUser = await User.findOne({
+      where: { phone_number: `${baseValue}-${oppositeRole}` },
+      include: [
+        {
+          association: 'talent',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        },
+        {
+          association: 'client',
+          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+        }
+      ]
+    });
+
+    if (!oppositeUser) {
+      return res.status(404).json({
+        status: false,
+        message: `No ${oppositeRole} account found for ${baseValue}`
+      });
+    }
+
+    if (oppositeUser.deletedAt) {
+      return res.status(400).json({ status: false, message: 'User is deleted' });
+    }
+    switch (oppositeUser.status) {
+      case 'pending':
+        return res.status(403).json({ status: false, message: 'Account pending approval' });
+      case 'rejected':
+        return res.status(403).json({ status: false, message: 'Account rejected' });
+      case 'blocked':
+        return res.status(403).json({ status: false, message: 'Account blocked. Contact support.' });
+      default:
+        break;
+    }
+
+    const token = jwt.sign({ id: oppositeUser.id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE
+    });
+
+    const [followersCount, followingsCount] = await Promise.all([
+      Follow.count({ where: { followingId: oppositeUser.id } }),
+      Follow.count({ where: { followerId: oppositeUser.id } })
+    ]);
+
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    let talentData = null;
+    if (oppositeUser.role === 'talent' && oppositeUser.talent) {
+      talentData = {
+        ...oppositeUser.talent.toJSON(),
+        skills: (oppositeUser.talent.skills || []).map(s => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,
+          rate: s.rate
+        }))
+      };
+    }
+
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+    const userData = {
+      token,
+      id: oppositeUser.id,
+      username: oppositeUser.username,
+      phone_number: oppositeUser.phone_number,
+      email: oppositeUser.email,
+      role: oppositeUser.role,
+      is_verified: oppositeUser.is_verified,
+      on_board: oppositeUser.on_board,
+      notification_alert: oppositeUser.notification_alert,
+      availability: oppositeUser.availability,
+      followers: followersCount,
+      followings: followingsCount,
+      userInfo:
+        oppositeUser.role === 'talent'
+          ? {
+              ...talentData,
+              profile_photo: talentData?.profile_photo
+                ? `${BASE_URL}${talentData.profile_photo}`
+                : null
+            }
+          : oppositeUser.client
+          ? {
+              ...oppositeUser.client.toJSON(),
+              profile_photo: oppositeUser.client.profile_photo
+                ? `${BASE_URL}${oppositeUser.client.profile_photo}`
+                : null
+            }
+          : null
+    };
+
+    return res.status(200).json({
+      status: true,
+      message: `Switched to ${oppositeRole} account`,
+      data: userData
+    });
+  } catch (error) {
+    console.error('Switch account error:', error);
+    return res.status(500).json({
+      status: false,
+      message: 'Server error during account switch',
+      error: error.message
+    });
+  }
+};
+
