@@ -636,8 +636,7 @@ exports.getBookingDetails = async (req, res) => {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
     }
     // 🔹 ADDITION STARTS HERE — show opposite party's reschedule request
-    const targetRole = role === 'talent' ? 'client' : 'talent';
-    const [rescheduleData] = await sequelize.query(`
+    const [rescheduletalent] = await sequelize.query(`
       SELECT 
         id,
         booking_id,
@@ -656,12 +655,38 @@ exports.getBookingDetails = async (req, res) => {
       ORDER BY id DESC
       LIMIT 1
     `, {
-      replacements: { bookingId, targetRole },
+      replacements: { bookingId, targetRole: 'talent' },
       type: sequelize.QueryTypes.SELECT
     });
 
-    response.reschedule = rescheduleData || null;
-    // 🔹 ADDITION ENDS HERE
+    const [rescheduleclient] = await sequelize.query(`
+      SELECT 
+        id,
+        booking_id,
+        requested_by,
+        requested_user_id,
+        old_date,
+        old_time,
+        new_date,
+        new_time,
+        status,
+        remarks,
+        createdAt
+      FROM booking_reschedules
+      WHERE booking_id = :bookingId
+      AND requested_by = :targetRole
+      ORDER BY id DESC
+      LIMIT 1
+    `, {
+      replacements: { bookingId, targetRole: 'client' },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    response.reschedule = [];
+
+    if (rescheduletalent) response.reschedule.push(rescheduletalent);
+    if (rescheduleclient) response.reschedule.push(rescheduleclient);
+
 
     return res.status(200).json(
       sendJson(true, 'Booking details retrieved successfully', response)
