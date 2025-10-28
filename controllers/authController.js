@@ -1638,3 +1638,124 @@ exports.switchAccount = async (req, res) => {
   }
 };
 
+exports.getBothProfiles = async (req, res) => {
+  try {
+    const { phone_number } = req.body;
+
+    if (!phone_number) {
+      return res.status(400).json({
+        status: false,
+        message: 'phone_number is required'
+      });
+    }
+
+    const baseValue = phone_number.split('-')[0]; // e.g. 8904
+    const roles = ['talent', 'client'];
+
+    const results = [];
+
+    for (const role of roles) {
+      const fullPhone = `${baseValue}-${role}`;
+
+      const user = await User.findOne({
+        where: { phone_number: fullPhone },
+        include: [
+          {
+            association: 'talent',
+            attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+          },
+          {
+            association: 'client',
+            attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+          }
+        ]
+      });
+
+      if (!user) continue;
+
+      const [followersCount, followingsCount] = await Promise.all([
+        Follow.count({ where: { followingId: user.id } }),
+        Follow.count({ where: { followerId: user.id } })
+      ]);
+
+      const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRE
+      });
+
+      const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+      const skillsMap = allSkills.reduce((acc, s) => {
+        acc[s.id] = s.name;
+        return acc;
+      }, {});
+
+      let talentData = null;
+      if (user.role === 'talent' && user.talent) {
+        talentData = {
+          ...user.talent.toJSON(),
+          skills: (user.talent.skills || []).map(s => ({
+            id: s.id,
+            name: skillsMap[s.id] || null,
+            rate: s.rate
+          }))
+        };
+      }
+
+      const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+
+      // ✅ EXACT SAME STRUCTURE AS YOUR EXISTING RESPONSE
+      const userData = {
+        token,
+        id: user.id,
+        username: user.username,
+        phone_number: user.phone_number,
+        email: user.email,
+        role: user.role,
+        is_verified: user.is_verified,
+        on_board: user.on_board,
+        notification_alert: user.notification_alert,
+        availability: user.availability,
+        followers: followersCount,
+        followings: followingsCount,
+        userInfo:
+          user.role === 'talent'
+            ? {
+                ...talentData,
+                profile_photo: talentData?.profile_photo
+                  ? `${BASE_URL}${talentData.profile_photo}`
+                  : null
+              }
+            : user.client
+            ? {
+                ...user.client.toJSON(),
+                profile_photo: user.client.profile_photo
+                  ? `${BASE_URL}${user.client.profile_photo}`
+                  : null
+              }
+            : null
+      };
+
+      results.push(userData);
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({
+        status: false,
+        message: 'No accounts found for this phone number'
+      });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: 'Profiles fetched successfully',
+      data: results
+    });
+  } catch (error) {
+    console.error('Get both profiles error:', error);
+    return res.status(500).json({
+      status: false,
+      message: 'Server error while fetching profiles',
+      error: error.message
+    });
+  }
+};
+
