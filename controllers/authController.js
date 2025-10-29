@@ -1524,7 +1524,7 @@ exports.switchAccount = async (req, res) => {
     }
 
     // ✅ Extract base number from username or phone_number
-    const baseValue = currentUser.username.split('-')[0]; // 8904
+    const baseValue = currentUser.phone_number.split('-')[0]; // 8904
     const oppositeRole = currentUser.role === 'talent' ? 'client' : 'talent';
 
     // ✅ Find the opposite account by phone_number (not username)
@@ -1704,7 +1704,7 @@ exports.getBothProfiles = async (req, res) => {
 
       // ✅ EXACT SAME STRUCTURE AS YOUR EXISTING RESPONSE
       const userData = {
-        token,
+        // token,
         id: user.id,
         username: user.username,
         phone_number: user.phone_number,
