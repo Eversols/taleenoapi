@@ -541,7 +541,7 @@ exports.getTalents = async (req, res) => {
 
     // Format response
     const formattedTalents = rows
-      .filter(row => row.availability) // ✅ skip talents with NULL availability
+      // .filter(row => row.availability) // ✅ skip talents with NULL availability
       .map(row => {
         let profile_photo = null;
         if (row.profile_photo) {
