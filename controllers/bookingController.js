@@ -682,10 +682,13 @@ exports.getBookingDetails = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    response.reschedule = [];
-
-    if (rescheduletalent) response.reschedule.push(rescheduletalent);
-    if (rescheduleclient) response.reschedule.push(rescheduleclient);
+    if (role === "client") {
+      response.reschedule = rescheduletalent;
+    } else if (role === "talent") {
+      response.reschedule = rescheduleclient;
+    } else {
+      response.reschedule = {}; // default empty object
+    }
 
 
     return res.status(200).json(

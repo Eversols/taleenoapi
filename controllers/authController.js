@@ -166,16 +166,26 @@ exports.verifyOTP = async (req, res) => {
     // 👉 Attach skill names to talent
     let talentData = null;
     if (user.role === 'talent' && user.talent) {
+      const mappedSkills = (user.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,
+        rate: s.rate
+      }));
+
+      let parsedAvailability = null;
+      try {
+        parsedAvailability = user.talent.availability ? JSON.parse(user.talent.availability) : null;
+      } catch (err) {
+        parsedAvailability = null;
+      }
+
       talentData = {
         ...user.talent.toJSON(),
-        skills: (user.talent.skills || []).map(s => ({
-          id: s.id,
-          name: skillsMap[s.id] || null,  // map id → name
-          rate: s.rate
-        }))
+        skills: mappedSkills,
+        availability: parsedAvailability
       };
     }
-const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     // response
     const userData = {
       token,
@@ -191,21 +201,20 @@ const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
       followers: followersCount,
       followings: followingsCount,
       userInfo: user.role === "talent"
-  ? {
-      ...talentData,
-      profile_photo: talentData?.profile_photo
-        ? `${BASE_URL}${talentData.profile_photo}`
-        : null
-    }
-  : user.client
-    ? {
-        ...user.client.toJSON(), // ✅ convert Sequelize instance → plain object
-        profile_photo: user.client.profile_photo
-          ? `${BASE_URL}${user.client.profile_photo}`
+        ? {
+            ...talentData,
+            profile_photo: talentData?.profile_photo
+              ? `${BASE_URL}${talentData.profile_photo}`
+              : null
+          }
+        : user.client
+          ? {
+              ...user.client.toJSON(),
+              profile_photo: user.client.profile_photo
+                ? `${BASE_URL}${user.client.profile_photo}`
+                : null
+            }
           : null
-      }
-    : null
-
     };
 
     return res.status(201).json({
@@ -1688,17 +1697,27 @@ exports.getBothProfiles = async (req, res) => {
         return acc;
       }, {});
 
-      let talentData = null;
-      if (user.role === 'talent' && user.talent) {
-        talentData = {
-          ...user.talent.toJSON(),
-          skills: (user.talent.skills || []).map(s => ({
-            id: s.id,
-            name: skillsMap[s.id] || null,
-            rate: s.rate
-          }))
-        };
+    let talentData = null;
+    if (user.role === 'talent' && user.talent) {
+      const mappedSkills = (user.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,
+        rate: s.rate
+      }));
+
+      let parsedAvailability = null;
+      try {
+        parsedAvailability = user.talent.availability ? JSON.parse(user.talent.availability) : null;
+      } catch (err) {
+        parsedAvailability = null;
       }
+
+      talentData = {
+        ...user.talent.toJSON(),
+        skills: mappedSkills,
+        availability: parsedAvailability
+      };
+    }
 
       const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 

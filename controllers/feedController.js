@@ -28,13 +28,6 @@ exports.getFeed = async (req, res) => {
       }
     });
 
-    const blockedByMe = blockedUsers
-      .filter(b => b.blocker_id === req.user.id)
-      .map(b => b.blocked_id);
-
-    const blockedMe = blockedUsers
-      .filter(b => b.blocked_id === req.user.id)
-      .map(b => b.blocker_id);
     const blockedIds = blockedUsers.map(b =>
       b.blocker_id === req.user.id ? b.blocked_id : b.blocker_id
     );
@@ -46,18 +39,17 @@ exports.getFeed = async (req, res) => {
       return acc;
     }, {});
 
-    // fetch all media first (skip blocked users here)
+    // fetch all media first (skip blocked users)
     const mediaItems = await Media.findAll({
       where: {
         userId: { [Op.notIn]: blockedIds }
       },
-      order: [['id', 'DESC']]   // ✅ Correct placement
+      order: [['id', 'DESC']]
     });
 
     const feed = [];
 
     for (const media of mediaItems) {
-      // find related user by media.userId
       const user = await User.findByPk(media.userId, {
         where: userWhere,
         include: [
@@ -79,104 +71,50 @@ exports.getFeed = async (req, res) => {
       });
 
       if (!user || !user.talent) continue;
-      // ✅ Skip if availability is null
       if (!user.talent.availability) continue;
-      
-      // ✅ Skip blocked users again (extra check)
       if (blockedIds.includes(user.id)) continue;
 
-      // ✅ AVAILABILITY FILTER
-      if (available_date || available_time) {
-        const date = available_date ? new Date(available_date) : null;
-        const dayOfWeek = date ? date.toLocaleDateString('en-US', { weekday: 'long' }) : null;
-
+      // ✅ NEW AVAILABILITY FILTER (date, time, and price)
+      if (available_date || available_time || price_range) {
         let isAvailable = false;
-
         try {
           const availData = JSON.parse(user.talent.availability);
 
-          // ⏰ Helper function — check if two time ranges overlap
-          const timesOverlap = (searchTime, range) => {
-            // Normalize time formats: remove spaces and leading zeros
-            const normalize = t => t.replace(/\s+/g, '').replace(/^0/, '');
-
-            const [searchStart, searchEnd] = normalize(searchTime).split('-');
-            const [rangeStart, rangeEnd] = normalize(range).split('-');
-
-            // Convert to minutes for easy comparison
-            const toMinutes = t => {
-              const [h, m] = t.split(':').map(Number);
-              return h * 60 + (m || 0);
-            };
-
-            const sStart = toMinutes(searchStart);
-            const sEnd = toMinutes(searchEnd);
-            const rStart = toMinutes(rangeStart);
-            const rEnd = toMinutes(rangeEnd);
-
-            // Check overlap (partial or exact)
-            return sStart < rEnd && sEnd > rStart;
-          };
-
-          // ✅ Handle both array-style and object-style availability
           if (Array.isArray(availData)) {
-            for (const entry of availData) {
-              const [day, ranges] = Object.entries(entry)[0];
+            for (const slotObj of availData) {
+              const matchDate = available_date ? slotObj.date === available_date : true;
+              const matchTime = available_time
+                ? slotObj.slot.includes(available_time.split('-')[0].trim())
+                : true;
+              const matchPrice = price_range
+                ? (() => {
+                    const [minPrice, maxPrice] = price_range.split('-').map(Number);
+                    const price = Number(slotObj.price || 0);
+                    return price >= minPrice && price <= maxPrice;
+                  })()
+                : true;
 
-              // Both filters
-              if (available_date && available_time) {
-                if (day === dayOfWeek && ranges.some(r => timesOverlap(available_time, r))) {
-                  isAvailable = true;
-                  break;
-                }
-              }
-              // Date only
-              else if (available_date && day === dayOfWeek) {
+              if (matchDate && matchTime && matchPrice) {
                 isAvailable = true;
                 break;
               }
-              // Time only
-              else if (available_time && ranges.some(r => timesOverlap(available_time, r))) {
-                isAvailable = true;
-                break;
-              }
-            }
-          } else if (typeof availData === 'object') {
-            // Both filters
-            if (available_date && available_time && dayOfWeek) {
-              const slots = availData[dayOfWeek];
-              if (Array.isArray(slots)) {
-                isAvailable = slots.some(r => timesOverlap(available_time, r));
-              }
-            }
-            // Date only
-            else if (available_date && dayOfWeek && availData[dayOfWeek]) {
-              isAvailable = true;
-            }
-            // Time only
-            else if (available_time) {
-              isAvailable = Object.values(availData).some(slots =>
-                Array.isArray(slots) && slots.some(r => timesOverlap(available_time, r))
-              );
             }
           }
         } catch (e) {
           console.error('Availability parse error:', e.message);
         }
 
-        if (!isAvailable) continue; // Skip if not available
+        if (!isAvailable) continue;
       }
 
       // continue existing filters (skills, price, etc.)
       let talentSkills = user.talent.skills || [];
 
-      // filter skill
       if (skill_id) {
         talentSkills = talentSkills.filter(s => s.id == skill_id);
         if (!talentSkills.length) continue;
       }
 
-      // filter price
       if (price_range) {
         const [minPrice, maxPrice] = price_range.split('-').map(Number);
         talentSkills = talentSkills.filter(s => Number(s.rate) >= minPrice && Number(s.rate) <= maxPrice);
@@ -189,7 +127,6 @@ exports.getFeed = async (req, res) => {
 
       const skill = talentSkills.find(s => s.id === media.skill_id);
 
-      // skills with names
       const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
         id: s.id,
         name: skillsMap[s.id] || null,
@@ -223,11 +160,11 @@ exports.getFeed = async (req, res) => {
           full_name: user.talent?.full_name || null,
           talent_type: user.talent?.main_talent || null,
           location: `${user.talent?.city
-          ? (await City.findByPk(user.talent.city))?.name || null
-          : null }, ${user.talent?.country || ''}`,
+            ? (await City.findByPk(user.talent.city))?.name || null
+            : null}, ${user.talent?.country || ''}`,
           city: user.talent?.city
-          ? (await City.findByPk(user.talent.city))?.name || null
-          : null,
+            ? (await City.findByPk(user.talent.city))?.name || null
+            : null,
           country: user.talent?.country || null,
           profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
           video_url: user.talent?.video_url || null,
