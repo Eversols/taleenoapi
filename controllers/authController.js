@@ -627,14 +627,28 @@ exports.updateProfile = async (req, res) => {
     }, {});
 
 // 👉 Attach skill names to talent
-let talentData = [];
+  let talentData = null;
     if (user.role === 'talent' && user.talent) {
-      talentData = (user.talent.skills || []).map(s => ({
+      const mappedSkills = (user.talent.skills || []).map(s => ({
         id: s.id,
-        name: skillsMap[s.id] || null,  // map id → name
+        name: skillsMap[s.id] || null,
         rate: s.rate
       }));
+
+      let parsedAvailability = null;
+      try {
+        parsedAvailability = user.talent.availability ? JSON.parse(user.talent.availability) : null;
+      } catch (err) {
+        parsedAvailability = null;
+      }
+
+      talentData = {
+        ...user.talent.toJSON(),
+        skills: mappedSkills,
+        availability: parsedAvailability
+      };
     }
+
 
     const userData = user.toJSON();
     
@@ -1589,13 +1603,23 @@ exports.switchAccount = async (req, res) => {
 
     let talentData = null;
     if (oppositeUser.role === 'talent' && oppositeUser.talent) {
+      const mappedSkills = (oppositeUser.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,
+        rate: s.rate
+      }));
+
+      let parsedAvailability = null;
+      try {
+        parsedAvailability = oppositeUser.talent.availability ? JSON.parse(oppositeUser.talent.availability) : null;
+      } catch (err) {
+        parsedAvailability = null;
+      }
+
       talentData = {
         ...oppositeUser.talent.toJSON(),
-        skills: (oppositeUser.talent.skills || []).map(s => ({
-          id: s.id,
-          name: skillsMap[s.id] || null,
-          rate: s.rate
-        }))
+        skills: mappedSkills,
+        availability: parsedAvailability
       };
     }
 
