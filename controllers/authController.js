@@ -522,8 +522,9 @@ exports.updateProfile = async (req, res) => {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     let profile_photo = req.file?.filename ? `${BASE_URL}/uploads/${req.file.filename}` : null;
      await user.update({
-        availability
-      });
+            availability,
+            status: "approved" // <-- new line added safely
+          });
     // Update based on role
         // Parse languages properly
     let parsedLanguages = [];

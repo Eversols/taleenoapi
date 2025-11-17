@@ -1495,31 +1495,30 @@ exports.TalentAvailability = async (req, res) => {
       LIMIT 1
     `, { replacements: { talent_id } });
 
-    const weeklyAvailability = talentResult[0] && talentResult[0].availability
+    // NEW: Parse date-based availability
+    const talentAvailability = talentResult[0] && talentResult[0].availability
       ? JSON.parse(talentResult[0].availability)
-      : {};
+      : [];
 
-    const weekdayMap = {
-      0: 'Sunday',
-      1: 'Monday',
-      2: 'Tuesday',
-      3: 'Wednesday',
-      4: 'Thursday',
-      5: 'Friday',
-      6: 'Saturday'
-    };
+    // ------------------------
+    // UPDATED PART STARTS HERE
+    // ------------------------
 
-    // Build response per date
     const data = bookingdates.map(dateStr => {
-      const weekday = weekdayMap[new Date(dateStr).getDay()];
 
       // Get booked slots for this date
       const booked_slots = bookedSlots
         .filter(s => s.booking_date === dateStr)
         .map(s => ({ booking_time: s.booking_time }));
 
-      // Get talent slots for this date
-      const talent_slots = (weeklyAvailability[weekday] || []).map(slot => ({ booking_time: slot }));
+      // Match talent slot exactly for this date
+      const slotForDate = talentAvailability.filter(a => a.date === dateStr);
+
+      const talent_slots = slotForDate.map(s => ({
+        slot: s.slot,
+        price: s.price,
+        discount: s.discount
+      }));
 
       return {
         date: dateStr,
@@ -1527,6 +1526,10 @@ exports.TalentAvailability = async (req, res) => {
         talent_slots
       };
     });
+
+    // ------------------------
+    // UPDATED PART ENDS HERE
+    // ------------------------
 
     return res.status(200).json({
       status: true,
