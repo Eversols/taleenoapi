@@ -47,6 +47,7 @@ exports.register = async (req, res) => {
       phone_number,
       email: defaultEmail,
       password: defaultPassword,
+      status: "approved",
       role: role || 'client',
       availability
     });
@@ -522,8 +523,7 @@ exports.updateProfile = async (req, res) => {
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     let profile_photo = req.file?.filename ? `${BASE_URL}/uploads/${req.file.filename}` : null;
      await user.update({
-            availability,
-            status: "approved" // <-- new line added safely
+            availability // <-- new line added safely
           });
     // Update based on role
         // Parse languages properly
@@ -1437,7 +1437,11 @@ exports.updateUserStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json(sendJson(false, 'User not found'));
     }
-
+    if(status === "approved"){
+      user.is_verified_by_admin = 1;
+    }else{
+      user.is_verified_by_admin = 0;
+    }
     user.status = status;
     user.reason = reason;
     await user.save();
