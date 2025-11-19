@@ -145,6 +145,11 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'pending',
       comment: 'User account status: pending, approved, rejected, blocked'
     },
+    is_verified_by_admin: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
      reason: {
       type: DataTypes.STRING(20),
       allowNull: true
