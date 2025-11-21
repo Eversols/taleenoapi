@@ -11,6 +11,13 @@ exports.upload = async (req, res) => {
       );
     }
     const { type } = req.body;
+    // Validate skill_id
+    if (!req.body.skill_id) {
+      return res.status(400).json(
+        sendJson(false, 'skill_id is required')
+      );
+    }
+
 
     // Validate at least one update parameter exists
     if (!type) {
@@ -228,6 +235,13 @@ exports.update = async (req, res) => {
     const media = await Media.findByPk(req.params.id);
 
     // const { type } = req.body;
+    // Validate skill_id
+  if (!req.body.skill_id) {
+    return res.status(400).json(
+      sendJson(false, 'skill_id is required')
+    );
+  }
+
 
     // // Validate at least one update parameter exists
     // if (!type) {
