@@ -35,11 +35,18 @@ exports.getAll = async (req, res) => {
       attributes: ['id', 'name', 'code'],
       order: [['name', 'ASC']]
     });
-    
+    // Move Saudi Arabia (id = 194) to top
+    const priorityId = 194;
+
+    const sortedCountries = [
+      ...countries.filter(c => c.id === priorityId),
+      ...countries.filter(c => c.id !== priorityId)
+    ];
+
     return res.status(200).json(
       sendJson(true, 'Countries retrieved successfully', {
-        count: countries.length,
-        countries
+        count: sortedCountries.length,
+        countries: sortedCountries
       })
     );
   } catch (err) {

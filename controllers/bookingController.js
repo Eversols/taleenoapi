@@ -249,6 +249,7 @@ exports.getBookings = async (req, res) => {
       rating: Bookings.length > 0 ? Bookings[0].rating || 0 : 0,
       booking: Bookings.map(b => ({
         skillname: b.skill_name,
+        username: role === "talent" ? b.client_name : b.talent_name,
         location: b.location,
         price: b.rate,
         status: b.status,
