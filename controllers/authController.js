@@ -485,7 +485,7 @@ exports.updateProfile = async (req, res) => {
   try {
     const { 
       full_name, gender, age, country, location, nationality, city, 
-      languages, hourly_rate, interests, availability, skills, about 
+      languages, hourly_rate, interests, availability, skills, about ,latitude, longitude
     } = req.body;
 
     const user = await User.findByPk(req.user.id, {
@@ -570,7 +570,9 @@ exports.updateProfile = async (req, res) => {
         skills,
         about,
         nationality,
-        location
+        location,
+        latitude,      // <-- ADD
+        longitude      // <-- ADD
       });
     } else {
       await user.update({ on_board: 1 });
@@ -584,7 +586,9 @@ exports.updateProfile = async (req, res) => {
         languages:parsedLanguages,
         about,
         nationality,
-        location
+        location,
+        latitude,      // <-- ADD
+        longitude      // <-- ADD
       });
     }
 
