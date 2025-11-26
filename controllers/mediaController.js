@@ -12,11 +12,11 @@ exports.upload = async (req, res) => {
     }
     const { type } = req.body;
     // Validate skill_id
-    if (!req.body.skill_id) {
-      return res.status(400).json(
-        sendJson(false, 'skill_id is required')
-      );
-    }
+    // if (!req.body.skill_id) {
+    //   return res.status(400).json(
+    //     sendJson(false, 'skill_id is required')
+    //   );
+    // }
 
 
     // Validate at least one update parameter exists
@@ -42,7 +42,7 @@ exports.upload = async (req, res) => {
 
     const media = await Media.create({
       userId: req.user.id,
-      skill_id: req.body.skill_id,
+      // skill_id: req.body.skill_id,
       title: req.body.title,
       description: req.body.description,
       fileUrl,
@@ -50,11 +50,11 @@ exports.upload = async (req, res) => {
       visibility: req.body.visibility === '1' ? true : false
     });
     let skill = null;
-    if (req.body.skill_id) {
-      skill = await Skill.findByPk(req.body.skill_id, {
-        attributes: ['id', 'name']
-      });
-    }
+    // if (req.body.skill_id) {
+    //   skill = await Skill.findByPk(req.body.skill_id, {
+    //     attributes: ['id', 'name']
+    //   });
+    // }
     return res.status(201).json(
       sendJson(true, 'Media uploaded successfully', {
         media: {
@@ -63,7 +63,7 @@ exports.upload = async (req, res) => {
           description: media.description,
           fileUrl: media.fileUrl,
           type: media.type,
-          skill: skill || null,
+          // skill: skill || null,
           visibility: media.visibility,
           createdAt: media.createdAt
         }
@@ -236,11 +236,11 @@ exports.update = async (req, res) => {
 
     // const { type } = req.body;
     // Validate skill_id
-  if (!req.body.skill_id) {
-    return res.status(400).json(
-      sendJson(false, 'skill_id is required')
-    );
-  }
+  // if (!req.body.skill_id) {
+  //   return res.status(400).json(
+  //     sendJson(false, 'skill_id is required')
+  //   );
+  // }
 
 
     // // Validate at least one update parameter exists
@@ -283,19 +283,19 @@ exports.update = async (req, res) => {
     // const fileUrl = `/uploads/${finalFileName}`;
 
     await media.update({
-      skill_id: req.body.skill_id,
+      // skill_id: req.body.skill_id,
       title: req.body.title,
       description: req.body.description,
       // fileUrl,
       // type: type,
       visibility: req.body.visibility === '1' ? true : false
     });
-    let skill = null;
-    if (req.body.skill_id) {
-      skill = await Skill.findByPk(req.body.skill_id, {
-        attributes: ['id', 'name']
-      });
-    }
+    // let skill = null;
+    // if (req.body.skill_id) {
+    //   skill = await Skill.findByPk(req.body.skill_id, {
+    //     attributes: ['id', 'name']
+    //   });
+    // }
     return res.status(200).json(
       sendJson(true, 'Media updated successfully', {
         media: {
@@ -304,7 +304,7 @@ exports.update = async (req, res) => {
           description: media.description,
           fileUrl: media.fileUrl,
           type: media.type,
-          skill: skill || null,  // Returns null if no skill found
+          // skill: skill || null,  // Returns null if no skill found
           visibility: media.visibility,
           createdAt: media.createdAt
         }

@@ -285,7 +285,8 @@ exports.createBooking = async (req, res) => {
     const { talent_id, skill_id, time_slots, note } = req.body;
 
     // Validate input
-    if (!talent_id || !skill_id || typeof time_slots !== 'object') {
+    // if (!talent_id || !skill_id || typeof time_slots !== 'object') {
+    if (!talent_id || typeof time_slots !== 'object') {
       return res.status(400).json(
         sendJson(false, 'Talent ID, skill ID and time slots are required')
       );
@@ -312,16 +313,16 @@ exports.createBooking = async (req, res) => {
     }
 
     // Validate skill
-    const skill = await Skill.findByPk(skill_id);
-    if (!skill) {
-      return res.status(404).json(sendJson(false, 'Skill not found'));
-    }
+    // const skill = await Skill.findByPk(skill_id);
+    // if (!skill) {
+    //   return res.status(404).json(sendJson(false, 'Skill not found'));
+    // }
 
     // ✅ Create main booking record
     const booking = await Booking.create({
       client_id: client.id,
       talent_id,
-      skill_id,
+      // skill_id,
       note: note || null,
       status: 'pending'
     });
