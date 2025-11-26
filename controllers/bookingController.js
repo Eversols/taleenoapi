@@ -403,7 +403,7 @@ exports.getBookingDetails = async (req, res) => {
         ctryc.name AS client_country_name,
         c.profile_photo AS client_profile_photo,
         c.user_id AS client_user_id,
-
+        c.location AS client_location,
         t.id AS talent_id,
         t.full_name AS talent_full_name,
         t.city AS talent_city,
@@ -608,7 +608,7 @@ exports.getBookingDetails = async (req, res) => {
         booking_id: row.booking_id,
         user_id : row.client_user_id,
         price : (rate || 0) * (formattedSlots ? formattedSlots.length : 0),
-        location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
+        location: row.client_location || '',
         status: row.status || 'pending',
         username: row.client_full_name || '',
         profilePhoto: clientProfilePhoto,
