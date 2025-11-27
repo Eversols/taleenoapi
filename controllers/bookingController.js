@@ -246,7 +246,12 @@ exports.getBookings = async (req, res) => {
     const bookings = {
       totaltask: Bookings.length,
       totalHour,
-      rating: Bookings.length > 0 ? Bookings[0].rating || 0 : 0,
+      rating: (() => {
+        const rated = Bookings.filter(b => b.rating !== null);
+        if (rated.length === 0) return 0;
+        const total = rated.reduce((sum, b) => sum + Number(b.rating), 0);
+        return Number((total / rated.length).toFixed(1)); // average rating
+      })(),
       booking: Bookings.map(b => ({
         skillname: b.skill_name,
         username: role === "talent" ? b.client_name : b.talent_name,

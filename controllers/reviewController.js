@@ -7,14 +7,19 @@ exports.createReview = async (req, res) => {
     const reviewer_id = req.user.id;
 
     const booking = await Booking.findByPk(booking_id);
+      if (!booking) {
+        return res.status(404).json(
+          sendJson(false, 'Booking not found')
+        );
+      }
     let reviewed_id = null;
     if (req?.user?.role === 'client') {
-      // fetch user_id from talent table
+// fetch user_id from talent table
       const [talent] = await sequelize.query(
-        `SELECT u.id AS user_id 
-        FROM talents t 
-        JOIN users u ON u.id = t.user_id 
-        WHERE t.id = :talent_id`,
+        `SELECT u.id AS user_id
+         FROM talents t
+         JOIN users u ON u.id = t.user_id
+         WHERE t.id = :talent_id`,
         {
           replacements: { talent_id: booking?.talent_id },
           type: sequelize.QueryTypes.SELECT,
@@ -25,9 +30,9 @@ exports.createReview = async (req, res) => {
     } else if (req?.user?.role === 'talent') {
       // fetch user_id from client table
       const [client] = await sequelize.query(
-        `SELECT u.id AS user_id 
-         FROM clients c 
-         JOIN users u ON u.id = c.user_id 
+        `SELECT u.id AS user_id
+         FROM clients c
+         JOIN users u ON u.id = c.user_id
          WHERE c.id = :client_id`,
         {
           replacements: { client_id: booking?.client_id },
@@ -38,20 +43,16 @@ exports.createReview = async (req, res) => {
       reviewed_id = client?.user_id;
     }
 
-
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
-    }
-    const existingReview = await Review.findOne({ where: { booking_id } });
+    const existingReview = await Review.findOne({
+      where: {
+        booking_id,
+        reviewer_id
+      }
+    });
     if (existingReview) {
-      return res.status(400).json({
-        success: false,
-        message: 'Review already exists for this booking'
-      });
+      return res.status(400).json(
+        sendJson(false, 'You have already reviewed this booking')
+      );
     }
     const review = await Review.create({
       reviewer_id,
