@@ -63,12 +63,14 @@ exports.getBookings = async (req, res) => {
           
           c.id AS client_id,
           c.full_name AS client_full_name,
+          c.location AS client_location,
           c.profile_photo AS client_profile_photo,
           cc.name AS client_city_name,
           ctryc.name AS client_country_name,
 
           t.id AS talent_id,
           t.full_name AS talent_full_name,
+          t.location AS talent_location,
           t.hourly_rate AS talent_hourly_rate,
           tcc.name AS talent_city_name,
           tctry.name AS talent_country_name,
@@ -118,11 +120,13 @@ exports.getBookings = async (req, res) => {
           
           c.id AS client_id,
           c.full_name AS client_full_name,
+          c.location AS client_location,
           c.profile_photo AS client_profile_photo,
           cc.name AS client_city_name,
           ctryc.name AS client_country_name,
 
           t.id AS talent_id,
+          t.location AS talent_location,
           t.full_name AS talent_full_name,
           t.profile_photo AS talent_profile_photo,
           t.hourly_rate AS talent_hourly_rate,
@@ -219,7 +223,7 @@ exports.getBookings = async (req, res) => {
           description: row.note || '',
           rating: row.rating || null,
           skill_name: row.skill_name || '',
-          location,
+          location: role === "client" ? row.talent_location : row.client_location,
           rate,
           bookedSlots,
           ...(role === "talent"
