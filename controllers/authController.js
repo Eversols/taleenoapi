@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const s3 = require("../config/s3");
 const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,Like,BookingSlot,Country,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 const path = require("path");
@@ -909,19 +911,36 @@ exports.uploadProfileImage = async (req, res) => {
     }
 
     // ✅ Add original extension to the uploaded file
-    const ext = path.extname(req.file.originalname);
-    const finalFileName = req.file.filename + ext;
-    const finalPath = path.join(path.dirname(req.file.path), finalFileName);
+    // const ext = path.extname(req.file.originalname);
+    // const finalFileName = req.file.filename + ext;
+    // const finalPath = path.join(path.dirname(req.file.path), finalFileName);
 
-    // ✅ If file already exists → remove it
-    if (fs.existsSync(finalPath)) {
-      fs.unlinkSync(finalPath);
-    }
+    // // ✅ If file already exists → remove it
+    // if (fs.existsSync(finalPath)) {
+    //   fs.unlinkSync(finalPath);
+    // }
 
-    // ✅ Rename uploaded file to include extension
-    fs.renameSync(req.file.path, finalPath);
+    // // ✅ Rename uploaded file to include extension
+    // fs.renameSync(req.file.path, finalPath);
 
-    let profile_photo = `/uploads/${finalFileName}`;
+    // let profile_photo = `/uploads/${finalFileName}`;
+        const file = req.profile_photo;
+
+    const fileKey = `uploads/${Date.now()}-${file.originalname}`;
+
+    const params = {
+      Bucket: process.env.AWS_BUCKET,
+      Key: fileKey,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+
+    await s3.send(new PutObjectCommand(params));
+
+    // Works for all buckets, all regions
+    const profile_photo = `https://s3.${process.env.AWS_REGION}.amazonaws.com/${process.env.AWS_BUCKET}/${fileKey}`;
+
+    // let profile_photo = `/uploads/${finalFileName}`;
 
     // ✅ Save into DB
     const user = await User.findByPk(req.user.id, {
@@ -947,7 +966,8 @@ exports.uploadProfileImage = async (req, res) => {
     }
 
     
-    const fullurlimg = `${BASE_URL}${profile_photo}`;
+    // const fullurlimg = `${BASE_URL}${profile_photo}`;
+    const fullurlimg = profile_photo;
 
     return res
       .status(200)
