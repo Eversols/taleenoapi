@@ -232,7 +232,7 @@ exports.getBookings = async (req, res) => {
                 client_profile_photo: row.client_profile_photo
                   ? (row.client_profile_photo.startsWith('http')
                       ? row.client_profile_photo
-                      : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
+                      : `${row.client_profile_photo.replace(/^\//, '')}`)
                   : null,
               }
             : {
@@ -240,7 +240,7 @@ exports.getBookings = async (req, res) => {
                 talent_profile_photo: row.talent_profile_photo
                   ? (row.talent_profile_photo.startsWith('http')
                       ? row.talent_profile_photo
-                      : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`)
+                      : `${row.talent_profile_photo.replace(/^\//, '')}`)
                   : null,
               })
         };
@@ -641,13 +641,13 @@ if (talentAvailabilityData?.availability) {
     const clientProfilePhoto = row.client_profile_photo
       ? row.client_profile_photo.startsWith('http')
         ? row.client_profile_photo
-        : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`
+        : `${row.client_profile_photo.replace(/^\//, '')}`
       : null;
 
     const talentProfilePhoto = row.talent_profile_photo
       ? row.talent_profile_photo.startsWith('http')
         ? row.talent_profile_photo
-        : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
+        : `${row.talent_profile_photo.replace(/^\//, '')}`
       : null;
 
       // ✅ Role based response formatting
@@ -905,7 +905,7 @@ exports.ByDateBookings = async (req, res) => {
       const profileImage = row.profile_photo
         ? row.profile_photo.startsWith('http')
           ? row.profile_photo
-          : `${BASE_URL}/${row.profile_photo.replace(/^\//, '')}`
+          : `${row.profile_photo.replace(/^\//, '')}`
         : null;
 
       if (userRole === 'talent') {
@@ -1027,12 +1027,12 @@ exports.MyBookingsForTalent = async (req, res) => {
       client_profile_photo: row.client_profile_photo
         ? row.client_profile_photo.startsWith('http')
           ? row.client_profile_photo
-          : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`
+          : `${row.client_profile_photo.replace(/^\//, '')}`
         : null,
       talent_profile_photo: row.talent_profile_photo
         ? row.talent_profile_photo.startsWith('http')
           ? row.talent_profile_photo
-          : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
+          : `${row.talent_profile_photo.replace(/^\//, '')}`
         : null
     }));
 
@@ -1714,13 +1714,13 @@ exports.AdminBookings = async (req, res) => {
         client_profile_photo: row.client_profile_photo
           ? (row.client_profile_photo.startsWith('http')
               ? row.client_profile_photo
-              : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`)
+              : `${row.client_profile_photo.replace(/^\//, '')}`)
           : null,
         talent_name: row.talent_full_name || '',
         talent_profile_photo: row.talent_profile_photo
           ? (row.talent_profile_photo.startsWith('http')
               ? row.talent_profile_photo
-              : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`)
+              : `${row.talent_profile_photo.replace(/^\//, '')}`)
           : null,
       };
     });
@@ -1893,13 +1893,13 @@ exports.AdminBookingDetails = async (req, res) => {
     const clientProfilePhoto = row.client_profile_photo
       ? row.client_profile_photo.startsWith('http')
         ? row.client_profile_photo
-        : `${BASE_URL}/${row.client_profile_photo.replace(/^\//, '')}`
+        : `${row.client_profile_photo.replace(/^\//, '')}`
       : null;
 
     const talentProfilePhoto = row.talent_profile_photo
       ? row.talent_profile_photo.startsWith('http')
         ? row.talent_profile_photo
-        : `${BASE_URL}/${row.talent_profile_photo.replace(/^\//, '')}`
+        : `${row.talent_profile_photo.replace(/^\//, '')}`
       : null;
 
     // ✅ Admin full response (both sides visible)
