@@ -5,40 +5,20 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
 const fs = require('fs');
 
+
 exports.upload = async (req, res) => {
   try {
+    // Check file
     if (!req.file) {
-      return res.status(400).json(
-        sendJson(false, 'No file uploaded')
-      );
+      return res.status(400).json(sendJson(false, "No file uploaded"));
     }
+
     const { type } = req.body;
-    // Validate skill_id
-    // if (!req.body.skill_id) {
-    //   return res.status(400).json(
-    //     sendJson(false, 'skill_id is required')
-    //   );
-    // }
 
-
-    // Validate at least one update parameter exists
     if (!type) {
-      return res.status(400).json(
-        sendJson(false, 'Either a type must be provided for file')
-      );
+      return res.status(400).json(sendJson(false, "Type is required"));
     }
-    // // ✅ Add original extension
-    // const ext = path.extname(req.file.originalname);
-    // const finalFileName = req.file.filename + ext;
-    // const finalPath = path.join(path.dirname(req.file.path), finalFileName);
 
-    // // ✅ If file already exists → remove it
-    // if (fs.existsSync(finalPath)) {
-    //   fs.unlinkSync(finalPath);
-    // }
-
-    // // ✅ Rename uploaded file to include extension
-    // fs.renameSync(req.file.path, finalPath);
     const file = req.file;
 
     const fileKey = `uploads/${Date.now()}-${file.originalname}`;
@@ -46,63 +26,69 @@ exports.upload = async (req, res) => {
     const params = {
       Bucket: process.env.AWS_BUCKET,
       Key: fileKey,
-      Body: file.buffer,
-      ContentType: file.mimetype,
+      Body: file.buffer,          // IMPORTANT!
+      ContentType: file.mimetype 
     };
+
+    console.log("Uploading to S33333:", params);
+
+
+    // Add after: const file = req.file;
+
+console.log("File object:", {
+  fieldname: file.fieldname,
+  originalname: file.originalname,
+  mimetype: file.mimetype,
+  size: file.size,
+  hasBuffer: !!file.buffer,
+  bufferLength: file.buffer ? file.buffer.length : 0
+});
+
+// Verify credentials are loaded
+console.log("AWS Config Check:", {
+  hasRegion: !!process.env.AWS_REGION,
+  hasBucket: !!process.env.AWS_BUCKET,
+  hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+  hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+});
 
     await s3.send(new PutObjectCommand(params));
 
-    // Works for all buckets, all regions
-    const fileUrl = `https://s3.${process.env.AWS_REGION}.amazonaws.com/${process.env.AWS_BUCKET}/${fileKey}`;
-
-    // const fileUrl = `/uploads/${finalFileName}`;
+    // Correct S3 URL
+    const fileUrl = `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
 
     const media = await Media.create({
       userId: req.user.id,
-      // skill_id: req.body.skill_id,
       title: req.body.title,
       description: req.body.description,
       fileUrl,
-      type: type,
-      visibility: req.body.visibility === '1' ? true : false
+      type,
+      visibility: req.body.visibility === "1",
     });
-    let skill = null;
-    // if (req.body.skill_id) {
-    //   skill = await Skill.findByPk(req.body.skill_id, {
-    //     attributes: ['id', 'name']
-    //   });
-    // }
+
     return res.status(201).json(
-      sendJson(true, 'Media uploaded successfully', {
+      sendJson(true, "Media uploaded successfully", {
         media: {
           id: media.id,
           title: media.title,
           description: media.description,
           fileUrl: media.fileUrl,
           type: media.type,
-          // skill: skill || null,
           visibility: media.visibility,
-          createdAt: media.createdAt
-        }
+          createdAt: media.createdAt,
+        },
       })
     );
 
   } catch (error) {
-    // Clean up uploaded file if error occurs
-    if (req.file) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (err) {
-        console.warn("Cleanup failed:", err.message);
-      }
-    }
+    console.error("Upload error:", error);
+
     return res.status(500).json(
-      sendJson(false, 'Failed to upload media', {
-        error: error.message
-      })
+      sendJson(false, "Failed to upload media", { error: error.message })
     );
   }
 };
+
 
 exports.list = async (req, res) => {
   try {

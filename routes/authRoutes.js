@@ -3,20 +3,25 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const authMiddleware = require('../middleware/auth');
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
-const path = require('path');
-const crypto = require('crypto');
 
-// ✅ Configure multer to save files with original extension
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+// ✅ Use memoryStorage for S3 uploads
+const storage = multer.memoryStorage();
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit for profile images
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
-  },
+  fileFilter: (req, file, cb) => {
+    // Only allow image files
+    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, and GIF images are allowed.'));
+    }
+  }
 });
 
 // Public routes
@@ -27,7 +32,7 @@ router.post('/verifyLoginOTP', authController.verifyLoginOTP);
 router.post('/resendOTP', authController.resendOTP);
 
 // Protected routes (require valid token)
-router.post('/updateProfile', authMiddleware,upload.single('profile_photo'), authController.updateProfile);
+router.post('/updateProfile', authMiddleware, upload.single('profile_photo'), authController.updateProfile);
 router.post('/updateTalentDetails', authMiddleware, authController.updateTalentDetails);
 router.post('/Setnotificationalert', authMiddleware, authController.Setnotificationalert);
 router.get('/me', authMiddleware, authController.getMe);
@@ -38,4 +43,5 @@ router.delete("/delete/skills/:id", authMiddleware, authController.deleteSkill);
 router.delete("/delete/interests/:id", authMiddleware, authController.deleteInterest);
 router.post("/switchAccount", authMiddleware, authController.switchAccount);
 router.post("/getBothProfiles", authController.getBothProfiles);
+
 module.exports = router;

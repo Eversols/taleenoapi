@@ -904,27 +904,12 @@ exports.blockUser = async (req, res) => {
   }
 };
 exports.uploadProfileImage = async (req, res) => {
-  const BASE_URL = process.env.APP_URL?.replace(/\/$/, "") || "";
   try {
     if (!req.file) {
       return res.status(400).json(sendJson(false, "No image uploaded"));
     }
 
-    // ✅ Add original extension to the uploaded file
-    // const ext = path.extname(req.file.originalname);
-    // const finalFileName = req.file.filename + ext;
-    // const finalPath = path.join(path.dirname(req.file.path), finalFileName);
-
-    // // ✅ If file already exists → remove it
-    // if (fs.existsSync(finalPath)) {
-    //   fs.unlinkSync(finalPath);
-    // }
-
-    // // ✅ Rename uploaded file to include extension
-    // fs.renameSync(req.file.path, finalPath);
-
-    // let profile_photo = `/uploads/${finalFileName}`;
-        const file = req.profile_photo;
+    const file = req.file; // ✅ Changed from req.profile_photo to req.file
 
     const fileKey = `uploads/${Date.now()}-${file.originalname}`;
 
@@ -937,12 +922,10 @@ exports.uploadProfileImage = async (req, res) => {
 
     await s3.send(new PutObjectCommand(params));
 
-    // Works for all buckets, all regions
-    const profile_photo = `https://s3.${process.env.AWS_REGION}.amazonaws.com/${process.env.AWS_BUCKET}/${fileKey}`;
+    // S3 URL
+    const profile_photo = `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
 
-    // let profile_photo = `/uploads/${finalFileName}`;
-
-    // ✅ Save into DB
+    // Save into DB
     const user = await User.findByPk(req.user.id, {
       include: [
         { association: req.user.role === "talent" ? "talent" : "client" },
@@ -950,12 +933,6 @@ exports.uploadProfileImage = async (req, res) => {
     });
 
     if (!user) {
-      // Clean up uploaded file if user not found
-      try {
-        fs.unlinkSync(finalPath);
-      } catch (err) {
-        console.warn("Cleanup failed:", err.message);
-      }
       return res.status(404).json(sendJson(false, "User not found"));
     }
 
@@ -965,24 +942,12 @@ exports.uploadProfileImage = async (req, res) => {
       await user.client.update({ profile_photo });
     }
 
-    
-    // const fullurlimg = `${BASE_URL}${profile_photo}`;
-    const fullurlimg = profile_photo;
-
     return res
       .status(200)
-      .json(sendJson(true, "Profile photo updated successfully", { fullurlimg }));
+      .json(sendJson(true, "Profile photo updated successfully", { 
+        profile_photo 
+      }));
   } catch (error) {
-    // Clean up uploaded file if error occurs
-    if (req.file) {
-      try {
-        const ext = path.extname(req.file.originalname);
-        const finalPath = path.join(path.dirname(req.file.path), req.file.filename + ext);
-        fs.unlinkSync(finalPath);
-      } catch (err) {
-        console.warn("Cleanup failed:", err.message);
-      }
-    }
     console.error("Profile image upload error:", error);
     return res
       .status(500)
