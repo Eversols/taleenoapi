@@ -917,8 +917,7 @@ exports.uploadProfileImage = async (req, res) => {
       Bucket: process.env.AWS_BUCKET,
       Key: fileKey,
       Body: file.buffer,
-      ContentType: 'image/jpeg',
-      ContentDisposition: 'inline',
+      ContentType: file.mimetype,
     };
 
     await s3.send(new PutObjectCommand(params));
