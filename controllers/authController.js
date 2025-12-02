@@ -207,14 +207,14 @@ exports.verifyOTP = async (req, res) => {
         ? {
             ...talentData,
             profile_photo: talentData?.profile_photo
-              ? `${BASE_URL}${talentData.profile_photo}`
+              ? `${talentData.profile_photo}`
               : null
           }
         : user.client
           ? {
               ...user.client.toJSON(),
               profile_photo: user.client.profile_photo
-                ? `${BASE_URL}${user.client.profile_photo}`
+                ? `${user.client.profile_photo}`
                 : null
             }
           : null
