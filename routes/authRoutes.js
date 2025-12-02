@@ -10,17 +10,17 @@ const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit for profile images
+    fileSize: 50 * 1024 * 1024, // 5MB limit for profile images
   },
   fileFilter: (req, file, cb) => {
     // Only allow image files
-    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    
-    if (allowedMimes.includes(file.mimetype)) {
+    // const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    // console.log("Uploaded file extension = " + file.mimetype);
+    // if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, and GIF images are allowed.'));
-    }
+    // } else {
+    //   cb(new Error('Invalid file type. Only JPEG, PNG, and GIF images are allowed.'));
+    // }
   }
 });
 
