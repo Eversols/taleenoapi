@@ -14,13 +14,13 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     // Only allow image files
-    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    console.log("Uploaded file extension = " + file.mimetype);
-    if (allowedMimes.includes(file.mimetype)) {
+    // const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    // console.log("Uploaded file extension = " + file.mimetype);
+    // if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, and GIF images are allowed.'));
-    }
+    // } else {
+    //   cb(new Error('Invalid file type. Only JPEG, PNG, and GIF images are allowed.'));
+    // }
   }
 });
 
