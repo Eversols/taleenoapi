@@ -486,7 +486,23 @@ exports.getBookingDetails = async (req, res) => {
       }
     }
 
-    
+      // ------------------------------------------------------------------
+      // MATCH BOOKING SLOTS WITH TALENT AVAILABILITY & COUNT PRICE
+      // ------------------------------------------------------------------
+
+      let totalPriceFromAvailability = 0;
+
+      const [talentAvailabilityData] = await sequelize.query(
+        `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
+        {
+          replacements: { id: row.talent_id },
+          type: sequelize.QueryTypes.SELECT
+        }
+      );
+
+      
+// ------------------------------------------------------------------
+
 
     
     // ✅ Fetch only booked slots for this booking (no duplicates)
@@ -556,7 +572,26 @@ exports.getBookingDetails = async (req, res) => {
       booking_date: group.booking_date,
       booking_times: mergeContinuousSlots(group.booking_times)
     }));
+if (talentAvailabilityData?.availability) {
 
+          const availability = JSON.parse(talentAvailabilityData.availability);
+
+          formattedSlots.forEach((book) => {
+            const match = availability.find((a) => a.date === book.booking_date);
+
+            if (match) {
+              const pricePerSlot = Number(match.price) || 0;
+
+              // Count how many merged ranges → each is a full 1-hour block
+              const numberOfBlocks = match.slot.split(",").length;
+
+              // Add price * number_of_slots
+              totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
+            }
+          });
+
+
+      }
  // Format time
     let time = "12:00 AM";
     if (row.time_slot) {
@@ -621,7 +656,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id : row.client_user_id,
-        price : (rate || 0) * (formattedSlots ? formattedSlots.length : 0),
+        price : totalPriceFromAvailability,
         location: row.client_location || '',
         status: row.status || 'pending',
         username: row.client_full_name || '',
@@ -638,7 +673,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id : row.talent_user_id,
-        price : (rate || 0) * (formattedSlots ? formattedSlots.length : 0),
+        price : totalPriceFromAvailability,
         // location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         location: row.client_location,
         status: row.status || 'pending',
