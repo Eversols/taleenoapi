@@ -5,16 +5,21 @@ exports.createReview = async (req, res) => {
   try {
     const { booking_id, rating, comment } = req.body;
     const reviewer_id = req.user.id;
+    const reviewer_role = req.user.role;
 
+    // Find the booking
     const booking = await Booking.findByPk(booking_id);
-      if (!booking) {
-        return res.status(404).json(
-          sendJson(false, 'Booking not found')
-        );
-      }
+    if (!booking) {
+      return res.status(404).json(
+        sendJson(false, 'Booking not found')
+      );
+    }
+
     let reviewed_id = null;
-    if (req?.user?.role === 'client') {
-// fetch user_id from talent table
+    let other_party_role = null;
+
+    if (reviewer_role === 'client') {
+      // fetch user_id from talent table
       const [talent] = await sequelize.query(
         `SELECT u.id AS user_id
          FROM talents t
@@ -27,7 +32,8 @@ exports.createReview = async (req, res) => {
       );
 
       reviewed_id = talent?.user_id;
-    } else if (req?.user?.role === 'talent') {
+      other_party_role = 'talent';
+    } else if (reviewer_role === 'talent') {
       // fetch user_id from client table
       const [client] = await sequelize.query(
         `SELECT u.id AS user_id
@@ -41,19 +47,24 @@ exports.createReview = async (req, res) => {
       );
 
       reviewed_id = client?.user_id;
+      other_party_role = 'client';
     }
 
+    // Check if review already exists
     const existingReview = await Review.findOne({
       where: {
         booking_id,
         reviewer_id
       }
     });
+    
     if (existingReview) {
       return res.status(400).json(
         sendJson(false, 'You have already reviewed this booking')
       );
     }
+
+    // Create the review
     const review = await Review.create({
       reviewer_id,
       reviewed_id,
@@ -61,8 +72,30 @@ exports.createReview = async (req, res) => {
       rating,
       comment
     });
-    booking.status = 'completed';
+
+    // Check if the other party has already submitted a review
+    const otherPartyReview = await Review.findOne({
+      where: {
+        booking_id,
+        reviewer_id: reviewed_id // The other party's user_id as reviewer
+      }
+    });
+
+    // Update booking status based on review conditions
+    if (otherPartyReview) {
+      // Both parties have reviewed - set to 'completed'
+      booking.status = 'completed';
+    } else {
+      // Only one party has reviewed - set pending status for the other party
+      if (reviewer_role === 'client') {
+        booking.status = 'talentreviewpending';
+      } else if (reviewer_role === 'talent') {
+        booking.status = 'clientreviewpending';
+      }
+    }
+
     await booking.save();
+
     return res.status(201).json(
       sendJson(true, 'Review submitted successfully', {
         review: {
@@ -73,7 +106,8 @@ exports.createReview = async (req, res) => {
           rating: review.rating,
           comment: review.comment,
           createdAt: review.createdAt
-        }
+        },
+        booking_status: booking.status
       })
     );
   } catch (error) {
