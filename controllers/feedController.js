@@ -8,7 +8,7 @@ exports.getFeed = async (req, res) => {
     const { username, talent_type, location, price_range, skill_id, available_date, available_time } = req.query;
 
     const userWhere = { role: 'talent', is_blocked: 0 };
-    if (username) userWhere.username = username;
+    if (username) userWhere.username = { [Op.like]: `%${username}%` };
 
     const talentWhere = {};
     if (talent_type) talentWhere.main_talent = talent_type;
@@ -50,25 +50,29 @@ exports.getFeed = async (req, res) => {
     const feed = [];
 
     for (const media of mediaItems) {
-      const user = await User.findByPk(media.userId, {
-        where: userWhere,
-        include: [
-          {
-            association: 'talent',
-            where: talentWhere,
-            attributes: [
-              'id', 'full_name', 'city', 'country', 'profile_photo', 'video_url',
-              'main_talent', 'skills', 'availability',
-              [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
-              [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
-              [sequelize.literal(`(SELECT type FROM likes l WHERE l.talent_id = talent.id ${req.user ? `AND l.user_id = ${req.user.id}` : ``} LIMIT 1)`), 'reaction'],
-              [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
-              [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id ${req.user ? `AND w.user_id = ${req.user.id}` : ``})`), 'is_wishlisted'],
-              [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id)`), 'wishlist_count']
-            ]
-          }
+      const user = await User.findOne({
+      where: {
+        id: media.userId,
+        ...userWhere
+      },
+  include: [
+    {
+      association: 'talent',
+      where: talentWhere,
+      attributes: [
+        "id", "full_name", "city", "country", "profile_photo", "video_url",
+        "main_talent", "skills", "availability",
+        [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
+        [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
+        [sequelize.literal(`(SELECT type FROM likes l WHERE l.talent_id = talent.id ${req.user ? `AND l.user_id = ${req.user.id}` : ``} LIMIT 1)`), 'reaction'],
+        [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
+        [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id ${req.user ? `AND w.user_id = ${req.user.id}` : ``})`), 'is_wishlisted'],
+        [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id)`), 'wishlist_count'],
         ]
-      });
+      }
+    ]
+  });
+
 
       if (!user || !user.talent) continue;
       if (!user.talent.availability) continue;
