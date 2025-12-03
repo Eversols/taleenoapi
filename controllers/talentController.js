@@ -343,7 +343,7 @@ exports.getWishlist = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // 2️⃣ Load all skills once into a map { id: name }
+    // Load all skills once into a map
     const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
     const skillsMap = allSkills.reduce((acc, s) => {
       acc[s.id] = s.name;
@@ -352,49 +352,43 @@ exports.getWishlist = async (req, res) => {
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
 
-    // 3️⃣ Format wishlist with skills mapped
-    const formattedWishlist = rows.map(row => {
-      let profile_photo = null;
+    // FIX: Use async map + Promise.all
+    const formattedWishlist = await Promise.all(
+      rows.map(async (row) => {
+        let profile_photo = null;
 
-      if (row.profile_photo) {
-        // Ensure uploads/ path is normalized and prefixed with BASE_URL
-        profile_photo = `${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
-      }
-
-      // Parse talent.skills JSON safely
-      let parsedSkills = [];
-      try {
-        const skillsArray = row.talent_skills ? JSON.parse(row.talent_skills) : [];
-        parsedSkills = Array.isArray(skillsArray)
-          ? skillsArray.map(s => ({
-              id: s.id,
-              name: skillsMap[s.id] || null,
-              rate: s.rate
-            }))
-          : [];
-      } catch (e) {
-        parsedSkills = [];
-      }
-      // Generalized like field
-      let like = null;
-      if (row.reaction === 'like') like = true;
-      else if (row.reaction === 'unlike') like = false;
-
-      return {
-        id: row.wishlist_id,
-        talent: {
-          id: row.talent_id,
-          userId: row.user_id,
-          username: row.username,
-          profile_photo,
-          skills: parsedSkills,
-          reaction: row.reaction || null,
-          // liked: row.reaction === 'like',
-          // unliked: row.reaction === 'unlike',
-          like
+        if (row.profile_photo) {
+          profile_photo = `${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
         }
-      };
-    });
+
+        // Prevent undefined errors
+        const talentSkills = row?.talent_skills || [];
+
+        const talentSkillsWithNames = talentSkills.map(s => ({
+          id: s.id,
+          name: skillsMap[s.id] || null,
+          rate: s.rate
+        }));
+
+        // Convert like field
+        let like = null;
+        if (row.reaction === 'like') like = true;
+        if (row.reaction === 'unlike') like = false;
+
+        return {
+          id: row.wishlist_id,
+          talent: {
+            id: row.talent_id,
+            userId: row.user_id,
+            username: row.username,
+            profile_photo,
+            skills: talentSkillsWithNames,
+            reaction: row.reaction || null,
+            like
+          }
+        };
+      })
+    );
 
     return res.status(200).json(
       sendJson(true, 'Wishlist retrieved successfully', {
