@@ -1,4 +1,4 @@
-const { Booking, Client, Talent, User, Skill, Review ,BookingSlot ,BookingReschedule} = require('../models');
+const { Booking, Client, Talent, User, Skill, Review, BookingSlot, BookingReschedule } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const axios = require("axios");
@@ -8,19 +8,19 @@ const querystring = require("querystring");
 const { sendJson } = require('../utils/helpers');
 
 const BookingStatusEnum = [
-'pending', 
-'accepted',
-'paymentPending',
-'rejected',
-'inProgress',
-'completed',
-'reviewPending',
-'requestedForRescheduleByUser',
-'requestedForRescheduleByTalent',
-'canceledByUser',
-'canceledByTalent',
-'isPaid',
-'confirm'
+  'pending',
+  'accepted',
+  'paymentPending',
+  'rejected',
+  'inProgress',
+  'completed',
+  'reviewPending',
+  'requestedForRescheduleByUser',
+  'requestedForRescheduleByTalent',
+  'canceledByUser',
+  'canceledByTalent',
+  'isPaid',
+  'confirm'
 ];
 // ✅ Define helper function OUTSIDE the try block
 function parseAvailability(value) {
@@ -205,7 +205,44 @@ exports.getBookings = async (req, res) => {
         if (row.talent_city_name && row.talent_country_name) {
           location = `${row.talent_country_name}, ${row.talent_city_name}`;
         }
+        function mergeContinuousSlots(times) {
+          if (!times || times.length === 0) return [];
 
+          const sorted = [...times].sort((a, b) => {
+            const [startA] = a.split(' - ');
+            const [startB] = b.split(' - ');
+            return startA.localeCompare(startB);
+          });
+
+          const merged = [];
+          let currentStart = null;
+          let currentEnd = null;
+
+          for (let i = 0; i < sorted.length; i++) {
+            const [start, end] = sorted[i].split(' - ');
+
+            if (!currentStart) {
+              currentStart = start;
+              currentEnd = end;
+              continue;
+            }
+
+            // If current slot starts exactly at the previous end → merge it
+            if (start === currentEnd) {
+              currentEnd = end;
+            } else {
+              // Push completed range
+              merged.push(`${currentStart} - ${currentEnd}`);
+              currentStart = start;
+              currentEnd = end;
+            }
+          }
+
+          // Push last one
+          merged.push(`${currentStart} - ${currentEnd}`);
+
+          return merged;
+        }
         const [bookedSlots] = await sequelize.query(`
           SELECT 
             bs.slot_date AS booking_date,
@@ -214,6 +251,44 @@ exports.getBookings = async (req, res) => {
           WHERE bs.booking_id = :booking_id
           ORDER BY bs.slot_date ASC, bs.slot ASC
         `, { replacements: { booking_id: row.booking_id } });
+
+        const groupedSlots = bookedSlots.reduce((acc, slot) => {
+          let existing = acc.find(item => item.booking_date === slot.booking_date);
+          if (existing) {
+            existing.booking_times.push(slot.booking_time);
+          } else {
+            acc.push({
+              booking_date: slot.booking_date,
+              booking_times: [slot.booking_time]
+            });
+          }
+          return acc;
+        }, []);
+        const formattedSlots = groupedSlots.map(group => ({
+          booking_date: group.booking_date,
+          booking_times: mergeContinuousSlots(group.booking_times)
+        }));
+        let totalPriceFromAvailability = 0;
+        const [talentAvailabilityData] = await sequelize.query(
+          `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
+          {
+            replacements: { id: row.talent_id },
+            type: sequelize.QueryTypes.SELECT
+          }
+        );
+        if (talentAvailabilityData?.availability) {
+          const availability = JSON.parse(talentAvailabilityData.availability);
+          formattedSlots.forEach((book) => {
+            const match = availability.find((a) => a.date === book.booking_date);
+            if (match) {
+              const pricePerSlot = Number(match.price) || 0;
+              const numberOfBlocks = match.slot.split(",").length;
+              totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
+            }
+          });
+        }
+
+
 
         return {
           booking_id: row.booking_id,
@@ -226,23 +301,24 @@ exports.getBookings = async (req, res) => {
           location: role === "client" ? row.talent_location : row.client_location,
           rate,
           bookedSlots,
+          totalPriceFromAvailability,
           ...(role === "talent"
             ? {
-                client_name: row.client_full_name || '',
-                client_profile_photo: row.client_profile_photo
-                  ? (row.client_profile_photo.startsWith('http')
-                      ? row.client_profile_photo
-                      : `${row.client_profile_photo.replace(/^\//, '')}`)
-                  : null,
-              }
+              client_name: row.client_full_name || '',
+              client_profile_photo: row.client_profile_photo
+                ? (row.client_profile_photo.startsWith('http')
+                  ? row.client_profile_photo
+                  : `${row.client_profile_photo.replace(/^\//, '')}`)
+                : null,
+            }
             : {
-                talent_name: row.talent_full_name || '',
-                talent_profile_photo: row.talent_profile_photo
-                  ? (row.talent_profile_photo.startsWith('http')
-                      ? row.talent_profile_photo
-                      : `${row.talent_profile_photo.replace(/^\//, '')}`)
-                  : null,
-              })
+              talent_name: row.talent_full_name || '',
+              talent_profile_photo: row.talent_profile_photo
+                ? (row.talent_profile_photo.startsWith('http')
+                  ? row.talent_profile_photo
+                  : `${row.talent_profile_photo.replace(/^\//, '')}`)
+                : null,
+            })
         };
       })
     );
@@ -260,7 +336,7 @@ exports.getBookings = async (req, res) => {
         skillname: b.skill_name,
         username: role === "talent" ? b.client_name : b.talent_name,
         location: b.location,
-        price: b.rate,
+        price: b.totalPriceFromAvailability,
         status: b.status,
         date: b.bookedSlots.length > 0 ? b.bookedSlots[0].booking_date : null,
         day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
@@ -479,32 +555,32 @@ exports.getBookingDetails = async (req, res) => {
             rate = parseFloat(skillData.rate);
             SkillRate.rating = rate;
           }
-          
+
         } catch (err) {
           console.error("Error parsing skills JSON:", err.message);
         }
       }
     }
 
-      // ------------------------------------------------------------------
-      // MATCH BOOKING SLOTS WITH TALENT AVAILABILITY & COUNT PRICE
-      // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // MATCH BOOKING SLOTS WITH TALENT AVAILABILITY & COUNT PRICE
+    // ------------------------------------------------------------------
 
-      let totalPriceFromAvailability = 0;
+    let totalPriceFromAvailability = 0;
 
-      const [talentAvailabilityData] = await sequelize.query(
-        `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
-        {
-          replacements: { id: row.talent_id },
-          type: sequelize.QueryTypes.SELECT
-        }
-      );
-
-      
-// ------------------------------------------------------------------
+    const [talentAvailabilityData] = await sequelize.query(
+      `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
+      {
+        replacements: { id: row.talent_id },
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
 
 
-    
+    // ------------------------------------------------------------------
+
+
+
     // ✅ Fetch only booked slots for this booking (no duplicates)
     const [bookedSlots] = await sequelize.query(`
       SELECT 
@@ -572,27 +648,27 @@ exports.getBookingDetails = async (req, res) => {
       booking_date: group.booking_date,
       booking_times: mergeContinuousSlots(group.booking_times)
     }));
-if (talentAvailabilityData?.availability) {
+    if (talentAvailabilityData?.availability) {
 
-          const availability = JSON.parse(talentAvailabilityData.availability);
+      const availability = JSON.parse(talentAvailabilityData.availability);
 
-          formattedSlots.forEach((book) => {
-            const match = availability.find((a) => a.date === book.booking_date);
+      formattedSlots.forEach((book) => {
+        const match = availability.find((a) => a.date === book.booking_date);
 
-            if (match) {
-              const pricePerSlot = Number(match.price) || 0;
+        if (match) {
+          const pricePerSlot = Number(match.price) || 0;
 
-              // Count how many merged ranges → each is a full 1-hour block
-              const numberOfBlocks = match.slot.split(",").length;
+          // Count how many merged ranges → each is a full 1-hour block
+          const numberOfBlocks = match.slot.split(",").length;
 
-              // Add price * number_of_slots
-              totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
-            }
-          });
+          // Add price * number_of_slots
+          totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
+        }
+      });
 
 
-      }
- // Format time
+    }
+    // Format time
     let time = "12:00 AM";
     if (row.time_slot) {
       try {
@@ -650,13 +726,13 @@ if (talentAvailabilityData?.availability) {
         : `${row.talent_profile_photo.replace(/^\//, '')}`
       : null;
 
-      // ✅ Role based response formatting
+    // ✅ Role based response formatting
     let response;
     if (role === "talent") {
       response = {
         booking_id: row.booking_id,
-        user_id : row.client_user_id,
-        price : totalPriceFromAvailability,
+        user_id: row.client_user_id,
+        price: totalPriceFromAvailability,
         location: row.client_location || '',
         status: row.status || 'pending',
         username: row.client_full_name || '',
@@ -666,14 +742,14 @@ if (talentAvailabilityData?.availability) {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots:formattedSlots, // unique slots for this booking
+        bookedSlots: formattedSlots, // unique slots for this booking
         ...SkillRate
       };
     } else if (role === "client") {
       response = {
         booking_id: row.booking_id,
-        user_id : row.talent_user_id,
-        price : totalPriceFromAvailability,
+        user_id: row.talent_user_id,
+        price: totalPriceFromAvailability,
         // location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         location: row.client_location,
         status: row.status || 'pending',
@@ -684,7 +760,7 @@ if (talentAvailabilityData?.availability) {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
-        bookedSlots:formattedSlots, // unique slots for this booking
+        bookedSlots: formattedSlots, // unique slots for this booking
         ...SkillRate
       };
     } else {
@@ -1713,14 +1789,14 @@ exports.AdminBookings = async (req, res) => {
         client_name: row.client_full_name || '',
         client_profile_photo: row.client_profile_photo
           ? (row.client_profile_photo.startsWith('http')
-              ? row.client_profile_photo
-              : `${row.client_profile_photo.replace(/^\//, '')}`)
+            ? row.client_profile_photo
+            : `${row.client_profile_photo.replace(/^\//, '')}`)
           : null,
         talent_name: row.talent_full_name || '',
         talent_profile_photo: row.talent_profile_photo
           ? (row.talent_profile_photo.startsWith('http')
-              ? row.talent_profile_photo
-              : `${row.talent_profile_photo.replace(/^\//, '')}`)
+            ? row.talent_profile_photo
+            : `${row.talent_profile_photo.replace(/^\//, '')}`)
           : null,
       };
     });
@@ -1973,7 +2049,7 @@ exports.approveReschedule = async (req, res) => {
     reschedule.request_user_id = userId;
     await reschedule.save();
 
-return res.status(200).json(sendJson(true, "Reschedule approved successfully"));
+    return res.status(200).json(sendJson(true, "Reschedule approved successfully"));
   } catch (error) {
     console.error("Error approving reschedule:", error);
     return res.status(500).json(sendJson(false, "Failed to approve reschedule", { error: error.message }));
@@ -2000,7 +2076,7 @@ exports.rejectReschedule = async (req, res) => {
     reschedule.request_user_id = userId;
     await reschedule.save();
 
- return res.status(200).json(sendJson(true, "Reschedule request rejected successfully"));
+    return res.status(200).json(sendJson(true, "Reschedule request rejected successfully"));
   } catch (error) {
     console.error("Error rejecting reschedule:", error);
     return res.status(500).json(sendJson(false, "Failed to reject reschedule", { error: error.message }));
