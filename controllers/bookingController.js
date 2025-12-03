@@ -782,8 +782,7 @@ exports.getBookingDetails = async (req, res) => {
         remarks,
         createdAt
       FROM booking_reschedules
-      WHERE booking_id = :bookingId
-      AND requested_by = :targetRole
+      WHERE booking_id = :bookingId 
       ORDER BY id DESC
       LIMIT 1
     `, {
@@ -805,8 +804,7 @@ exports.getBookingDetails = async (req, res) => {
         remarks,
         createdAt
       FROM booking_reschedules
-      WHERE booking_id = :bookingId
-      AND requested_by = :targetRole
+      WHERE booking_id = :bookingId 
       ORDER BY id DESC
       LIMIT 1
     `, {

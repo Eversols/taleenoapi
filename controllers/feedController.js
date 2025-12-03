@@ -126,7 +126,7 @@ exports.getFeed = async (req, res) => {
       }
 
       if (media.fileUrl && !media.fileUrl.startsWith('http')) {
-        media.fileUrl = `${BASE_URL}${media.fileUrl}`;
+        media.fileUrl = `${media.fileUrl}`;
       }
 
       const skill = talentSkills.find(s => s.id === media.skill_id);
@@ -170,7 +170,7 @@ exports.getFeed = async (req, res) => {
             ? (await City.findByPk(user.talent.city))?.name || null
             : null,
           country: user.talent?.country || null,
-          profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
+          profile_photo: user.talent?.profile_photo ? `${user.talent.profile_photo}` : null,
           video_url: user.talent?.video_url || null,
           jobs,
           rating: user.rating || 0,
@@ -269,7 +269,7 @@ exports.AdminFeed = async (req, res) => {
       }
 
       if (media.fileUrl && !media.fileUrl.startsWith('http')) {
-        media.fileUrl = `${BASE_URL}${media.fileUrl}`;
+        media.fileUrl = `${media.fileUrl}`;
       }
 
       const skill = talentSkills.find(s => s.id === media.skill_id);
@@ -306,7 +306,7 @@ exports.AdminFeed = async (req, res) => {
           location: `${user.talent?.city || ''}, ${user.talent?.country || ''}`,
           city: user.talent?.city || null,
           country: user.talent?.country || null,
-          profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
+          profile_photo: user.talent?.profile_photo ? `${user.talent.profile_photo}` : null,
           video_url: user.talent?.video_url || null,
           jobs,
           rating: user.rating || 0,
@@ -468,7 +468,7 @@ exports.OldgetFeed = async (req, res) => {
       allMedia.forEach(media => {
         // Only prepend BASE_URL if fileUrl exists and doesn't already start with http
         if (media.fileUrl && !media.fileUrl.startsWith('http')) {
-          media.fileUrl = `${BASE_URL}${media.fileUrl}`;
+          media.fileUrl = `${media.fileUrl}`;
         }
         
         if (!mediaBySkillId[media.skill_id]) {
@@ -507,7 +507,7 @@ exports.OldgetFeed = async (req, res) => {
         location: `${user.talent?.city || ''}, ${user.talent?.country || ''}`,
         city: user.talent?.city || null,
         country: user.talent?.country || null,
-        profile_photo: user.talent?.profile_photo ? `${BASE_URL}${user.talent.profile_photo}` : null,
+        profile_photo: user.talent?.profile_photo ? `${user.talent.profile_photo}` : null,
         video_url: user.talent?.video_url || null,
         jobs: user.talent?.getDataValue('bookings_count') || 0,
         likes_count: user.talent?.getDataValue('likes_count') || 0,
