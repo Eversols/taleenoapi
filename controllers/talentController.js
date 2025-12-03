@@ -358,7 +358,7 @@ exports.getWishlist = async (req, res) => {
 
       if (row.profile_photo) {
         // Ensure uploads/ path is normalized and prefixed with BASE_URL
-        profile_photo = `${BASE_URL}/${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
+        profile_photo = `${row.profile_photo.replace(/^\/?uploads\//, 'uploads/')}`;
       }
 
       // Parse talent.skills JSON safely
