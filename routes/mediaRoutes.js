@@ -15,21 +15,21 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     // Optional: validate file types
-    const allowedMimes = [
-      'image/jpeg',
-      'image/jpg', 
-      'image/png',
-      'image/gif',
-      'video/mp4',
-      'video/quicktime',
-      'application/pdf'
-    ];
+    // const allowedMimes = [
+    //   'image/jpeg',
+    //   'image/jpg', 
+    //   'image/png',
+    //   'image/gif',
+    //   'video/mp4',
+    //   'video/quicktime',
+    //   'application/pdf'
+    // ];
     
-    if (allowedMimes.includes(file.mimetype)) {
+    // if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only images, videos, and PDFs are allowed.'));
-    }
+    // } else {
+    //   cb(new Error('Invalid file type. Only images, videos, and PDFs are allowed.'));
+    // }
   }
 });
 
