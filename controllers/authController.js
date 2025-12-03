@@ -682,7 +682,7 @@ exports.updateProfile = async (req, res) => {
       is_verified: userData.is_verified,
       on_board: userData.on_board,
       notification_alert: userData.notification_alert,
-followers: 0,   // replace with real DB count if needed
+      followers: 0,   // replace with real DB count if needed
       followings: 1,  // replace with real DB count if needed
       availability: userData.availability,
       userInfo
@@ -1113,7 +1113,7 @@ exports.getAllClients = async (req, res) => {
           ...clientInfo,
           interests: clientInterests,
           profile_photo: clientInfo.profile_photo
-            ? `${BASE_URL}${clientInfo.profile_photo}`
+            ? `${clientInfo.profile_photo}`
             : null,
         },
       };
