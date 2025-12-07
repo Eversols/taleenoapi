@@ -19,10 +19,17 @@ exports.register = async (req, res) => {
     }
 
     // Always generate full name from username
-    const usernameParts = username.split(/[\._]/); // split by . or _
+    const usernameParts = (username || "").trim().split(/[\._]/);
     const full_name = usernameParts
+      .filter(p => p.length > 0)
       .map(part => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+
+    if (!full_name || full_name.trim() === '') {
+      return res.status(400).json(
+        sendJson(false, 'Full name is required. Please provide a valid username.')
+      );
+    }
 
     // Check for existing username or phone number
     const existingUser = await User.findOne({
@@ -55,8 +62,7 @@ exports.register = async (req, res) => {
     });
 
     // Generate OTP
-    // const otp = generateOTP();
-    const otp = "1234";
+    const otp = "1234"; // keep your existing logic
     const otpExpire = new Date(Date.now() + 10 * 60 * 1000);
 
     await user.update({
