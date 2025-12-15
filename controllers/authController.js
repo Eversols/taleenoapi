@@ -10,11 +10,11 @@ const fs = require("fs");
 
 exports.register = async (req, res) => {
   try {
-    const { username, phone_number, role ,availability} = req.body;
+    const { username, phone_number, role ,availability,player_id} = req.body;
 
-    if (!username || !phone_number) {
+    if (!username || !phone_number || !player_id) {
       return res.status(400).json(
-        sendJson(false, 'Username and phone number are required.')
+        sendJson(false, 'Username , player_id and phone number are required.')
       );
     }
 
@@ -36,7 +36,8 @@ exports.register = async (req, res) => {
       where: {
         [Op.or]: [
           { username },
-          { phone_number }
+          { phone_number },
+          { player_id }
         ]
       }
     });
@@ -58,6 +59,7 @@ exports.register = async (req, res) => {
       password: defaultPassword,
       status: "approved",
       role: role || 'client',
+      player_id,
       availability
     });
 
@@ -247,9 +249,17 @@ exports.verifyOTP = async (req, res) => {
 // Login with phone number (send OTP)
 exports.loginWithPhone = async (req, res) => {
   try {
-    const { phone_number } = req.body;
+    const { phone_number , player_id} = req.body;
 
-    const user = await User.findOne({ where: { phone_number } });
+    const user = await User.findOne({ where: { 
+        phone_number: phone_number,
+        player_id: player_id
+      } });
+    if (!player_id) {
+      return res.status(404).json(
+        sendJson(false, 'player_id are required')
+      );
+    }
 
     if (!user) {
       return res.status(404).json(

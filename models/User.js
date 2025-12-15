@@ -154,6 +154,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(20),
       allowNull: true
     },
+    player_id: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
 
   }, {
     sequelize,
