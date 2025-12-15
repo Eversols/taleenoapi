@@ -252,8 +252,7 @@ exports.loginWithPhone = async (req, res) => {
     const { phone_number , player_id} = req.body;
 
     const user = await User.findOne({ where: { 
-        phone_number: phone_number,
-        player_id: player_id
+        phone_number: phone_number
       } });
     if (!player_id) {
       return res.status(404).json(
@@ -294,7 +293,8 @@ exports.loginWithPhone = async (req, res) => {
 
     await user.update({
       verification_code: otp,
-      verification_code_expire: otpExpire
+      verification_code_expire: otpExpire,
+        player_id: player_id
     });
 
     return res.status(200).json(
@@ -372,6 +372,7 @@ exports.verifyLoginOTP = async (req, res) => {
           username: user.username,
           phone_number: user.phone_number,
           role: user.role,
+           player_id: user.player_id,
           is_verified: user.is_verified
         }
       })
