@@ -1,4 +1,4 @@
-const { Like, Share, Talent, User, Wishlist, Skill, sequelize } = require('../models');
+const { Like, Share, Talent, User, Wishlist, Skill,Media, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -234,6 +234,82 @@ exports.getUserDetails = async (req, res) => {
     return res.status(500).json(
       sendJson(false, 'Failed to fetch user details', { error: error.message })
     );
+  }
+};
+exports.getTalentDetails = async (req, res) => {
+  try {
+    const { talent_id } = req.query; // Get talent_id from URL parameter
+    if (!talent_id) {
+      return res.status(400).json({ success: false, message: "talent_id is required" });
+    }
+
+    // Fetch the talent user and their associated talent details
+    const user = await User.findOne({
+      where: { role: 'talent', id: talent_id, is_blocked: 0 },
+      include: [
+        {
+          association: 'talent',
+          attributes: [
+            "id", "full_name", "city", "country", "profile_photo", "video_url",
+            "main_talent", "skills", "availability",
+            [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
+            [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
+            [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
+            [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id ${req.user ? `AND w.user_id = ${req.user.id}` : ''})`), 'is_wishlisted']
+          ]
+        }
+      ]
+    });
+
+    if (!user || !user.talent) {
+      return res.status(404).json({ success: false, message: "Talent not found" });
+    }
+
+    // Parse skills and availability
+    const talentSkills = user.talent.skills || [];
+    let availabilityHours = 0;
+    try {
+      const availData = JSON.parse(user.talent.availability || '[]');
+      availabilityHours = availData.reduce((sum, slot) => sum + (slot.hours || 0), 0);
+    } catch (err) {
+      console.error("Error parsing availability:", err.message);
+    }
+
+    // Fetch all media related to this talent
+    const mediaItems = await Media.findAll({
+      where: { userId: user.id },
+      order: [['id', 'DESC']]
+    });
+
+    // Map media to desired structure
+    const contents = await Promise.all(mediaItems.map(async (media) => {
+      const likes = await sequelize.models.MediaLike.count({ where: { media_id: media.id } });
+      const views = media.views || 0;
+      return {
+        type: media.type || 'image', // default to image if not specified
+        url: media.fileUrl?.startsWith('http') ? media.fileUrl : `${process.env.APP_URL}/${media.fileUrl}`,
+        likes,
+        views
+      };
+    }));
+
+    // Prepare response
+    const response = {
+      talent: {
+        title: user.talent.main_talent || user.talent.full_name,
+        description: user.talent.description || `Expert in ${user.talent.main_talent || 'their field'}`,
+        skills: talentSkills.map(s => s.name).join(', '),
+        availabilityHours,
+        profilePhoto: user.talent.profile_photo?.startsWith('http') ? user.talent.profile_photo : `${process.env.APP_URL}/${user.talent.profile_photo}`,
+        contents
+      }
+    };
+
+    return res.status(200).json({ success: true, message: "Talent details retrieved successfully", ...response });
+
+  } catch (error) {
+    console.error('Get Talent Details Error:', error);
+    return res.status(500).json({ success: false, message: "Failed to retrieve talent details", error: error.message });
   }
 };
 
