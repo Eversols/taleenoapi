@@ -362,6 +362,7 @@ exports.verifyLoginOTP = async (req, res) => {
           username: user.username,
           phone_number: user.phone_number,
           role: user.role,
+          player_id: user.player_id,
           is_verified: user.is_verified
         }
       })

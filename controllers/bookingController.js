@@ -6,6 +6,11 @@ const { Payment } = require("../models");
 const https = require("https");
 const querystring = require("querystring");
 const { sendJson } = require('../utils/helpers');
+const resolveTalentSkills = require("../utils/resolveTalentSkills");
+
+
+const { sendNotificationByTemplate } = require("../services/notificationService");
+const bookingTemplateMap = require("../utils/bookingNotificationMapper");
 
 const BookingStatusEnum = [
   'pending',
@@ -393,7 +398,15 @@ exports.createBooking = async (req, res) => {
     }
 
     // Validate talent
-    const talent = await Talent.findByPk(talent_id);
+    // const talent = await Talent.findByPk(talent_id);
+      // Talent + user
+    const talent = await Talent.findByPk(talent_id, {
+      include: [{
+        model: User,
+        as: "user",
+        attributes: ["id", "username", "player_id"]
+      }]
+    });
     if (!talent) {
       return res.status(404).json(sendJson(false, 'Talent not found'));
     }
@@ -403,6 +416,10 @@ exports.createBooking = async (req, res) => {
     // if (!skill) {
     //   return res.status(404).json(sendJson(false, 'Skill not found'));
     // }
+
+     const serviceName = await resolveTalentSkills(talent.skills);
+
+      
 
     // ✅ Create main booking record
     const booking = await Booking.create({
@@ -440,6 +457,29 @@ exports.createBooking = async (req, res) => {
     if (slotData.length > 0) {
       createdSlots = await BookingSlot.bulkCreate(slotData);
     }
+
+
+     if (talent.user?.player_id) {
+      // Get first slot for preview
+      const firstDate = Object.keys(time_slots)[0];
+      const firstTime = time_slots[firstDate]?.[0];
+
+      await sendNotificationByTemplate({
+        template: "newRequest",
+        playerIds: [talent.user.player_id],
+        variables: {
+          clientName: client.full_name,
+          serviceName: serviceName, // replace if skill name exists
+          date: firstDate,
+          time: firstTime
+        },
+        data: {
+          type: "NEW_BOOKING_REQUEST",
+          bookingId: booking.id
+        }
+      });
+    }
+
 
     return res.status(201).json(
       sendJson(true, 'Booking request processed', {
@@ -850,7 +890,15 @@ exports.updateBookingStatus = async (req, res) => {
       );
     }
 
-    const booking = await Booking.findByPk(booking_id);
+    // const booking = await Booking.findByPk(booking_id);
+
+        const booking = await Booking.findByPk(booking_id, {
+            include: [
+              { model: User, as: "client" },
+              { model: User, as: "talent" },
+              { model: Skill, as: "skill" }
+            ]
+          });
     if (!booking) {
       return res.status(404).json(
         sendJson(false, 'Booking not found')
@@ -877,6 +925,33 @@ exports.updateBookingStatus = async (req, res) => {
     // Update status normally
     booking.status = status;
     await booking.save();
+
+      // Notification
+    const template = bookingTemplateMap[status];
+    if (template) {
+      const receiver =
+        status === "pending" ? booking.talent : booking.client;
+
+      if (receiver?.player_id) {
+        await sendNotificationByTemplate({
+          template,
+          playerIds: [receiver.oneSignalPlayerId],
+          variables: {
+            clientName: booking.client?.name,
+            talentName: booking.talent?.name,
+            otherPartyName: booking.client?.name,
+            serviceName: booking.skill?.name,
+            date: booking.booking_date,
+            time: booking.time_slot
+          },
+          data: {
+            type: "BOOKING_STATUS",
+            bookingId: booking.id,
+            status
+          }
+        });
+      }
+    }
 
     return res.status(200).json(
       sendJson(true, 'Booking status updated successfully', { updated_booking: booking })

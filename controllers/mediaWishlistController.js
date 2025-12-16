@@ -1,5 +1,6 @@
 const { MediaWishlist, Media } = require('../models'); // Assuming Sequelize model exists
 const { sendJson } = require('../utils/helpers');
+const { sendNotificationByTemplate } = require("../services/notificationService");
 
 exports.getAllWishlist = async (req, res) => {
   try {
@@ -79,6 +80,35 @@ exports.addWishlist = async (req, res) => {
       user_id: req.user.id,
       media_id
     });
+
+      
+    const media = await Media.findByPk(media_id, {
+      include: [{
+        model: User,
+        as: "user",
+        attributes: ["id", "username", "full_name", "player_id"]
+      }],
+      attributes: ["id", "title"]
+    });
+
+    
+    if (
+      media?.user?.player_id &&
+      media.user.id !== req.user.id // avoid self notification
+    ) {
+      await sendNotificationByTemplate({
+        template: "wishlist",
+        playerIds: [media.user.player_id],
+        variables: {
+          userName: media.user.full_name || media.user.username,
+          serviceName: media.title || "your media"
+        },
+        data: {
+          type: "MEDIA_WISHLIST",
+          mediaId: media.id
+        }
+      });
+    }
 
     return res.status(201).json(
       sendJson(true, 'Added to wishlist', { wishlist: newWishlist })
