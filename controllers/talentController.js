@@ -1,7 +1,7 @@
 const { Like, Share, Talent, User, Wishlist, Skill,Media, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
-
+const { sendNotificationByTemplate } = require("../services/notificationService");
 // Like a talent
 exports.likeTalent = async (req, res) => {
   try {
@@ -87,7 +87,28 @@ exports.likeTalent = async (req, res) => {
     });
 
     console.log("Counts:", counts);
-
+    if (
+      type === "like" &&
+      talent.player_id &&
+      talent.user_id !== req.user.id
+    ) {
+      try {
+        await sendNotificationByTemplate({
+          template: "talent_like",
+          playerIds: [talent.player_id],
+          variables: {
+            userName: req.user.full_name || req.user.username,
+            serviceName: "your talent profile"
+          },
+          data: {
+            type: "TALENT_LIKE",
+            talentId: talent.id
+          }
+        });
+      } catch (notifyError) {
+        console.error("Talent like notification failed:", notifyError.message);
+      }
+    }
     return res.status(200).json(
       sendJson(true, 'Reaction updated successfully', {
         talent: {

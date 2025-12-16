@@ -4,7 +4,7 @@ const { sendJson } = require('../utils/helpers');
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
 const fs = require('fs');
-
+const { sendNotificationByTemplate } = require("../services/notificationService");
 
 exports.upload = async (req, res) => {
   try {
@@ -423,6 +423,29 @@ exports.like = async (req, res) => {
       const likesCount = await sequelize.models.MediaLike.count({
         where: { media_id: id }
       });
+      
+          // 🔔 SEND NOTIFICATION (safe)
+      if (
+        media?.user?.player_id &&
+        media.user.id !== userId
+      ) {
+        try {
+          await sendNotificationByTemplate({
+            template: "liked",
+            playerIds: [media.user.player_id],
+            variables: {
+              userName: req.user.full_name || req.user.username,
+              serviceName: media.title || "your media"
+            },
+            data: {
+              type: "MEDIA_LIKE",
+              mediaId: media.id
+            }
+          });
+        } catch (notifyError) {
+          console.error("Like notification failed:", notifyError.message);
+        }
+      }
 
       return res.status(200).json(
         sendJson(true, 'Media liked successfully', {
