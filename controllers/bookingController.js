@@ -1647,8 +1647,7 @@ exports.createCheckout = async (req, res) => {
     if (!amount || !email || !merchantTransactionId || !booking_id) {
       return res.status(400).json(sendJson(false, "Missing required fields"));
     }
-
-    console.log("Creating HyperPay checkout for amount:", process.env.HYPERPAY_ENTITY_ID);
+ 
 
     // Build request data
     const data = querystring.stringify({
@@ -1672,7 +1671,7 @@ exports.createCheckout = async (req, res) => {
     // HTTPS request options
     const options = {
       port: 443,
-      host: process.env.HYPERPAY_API_HOST,  
+      host: process.env.HYPERPAY_HOST,  
       path: "/v1/checkouts",
       method: "POST",
       headers: {
