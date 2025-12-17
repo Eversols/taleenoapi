@@ -1648,9 +1648,11 @@ exports.createCheckout = async (req, res) => {
       return res.status(400).json(sendJson(false, "Missing required fields"));
     }
 
+    console.log("Creating HyperPay checkout for amount:", process.env.HYPERPAY_ENTITY_ID);
+
     // Build request data
     const data = querystring.stringify({
-      entityId: "8ac7a4c79483092601948366b9d1011b",
+      entityId: process.env.HYPERPAY_ENTITY_ID  ,
       amount: parseFloat(amount).toFixed(2),
       currency: "SAR",
       paymentType: "DB",
@@ -1670,14 +1672,14 @@ exports.createCheckout = async (req, res) => {
     // HTTPS request options
     const options = {
       port: 443,
-      host: "eu-test.oppwa.com",
+      host: process.env.HYPERPAY_API_HOST,  
       path: "/v1/checkouts",
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         "Content-Length": data.length,
-        Authorization:
-          "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo="
+        Authorization:  
+          `Bearer ${process.env.HYPERPAY_AUTHORIZATION_TOKEN}`
       }
     };
 
