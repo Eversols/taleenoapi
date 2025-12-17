@@ -399,7 +399,7 @@ exports.createBooking = async (req, res) => {
 
     // Validate talent
     // const talent = await Talent.findByPk(talent_id);
-      // Talent + user
+    // Talent + user
     const talent = await Talent.findByPk(talent_id, {
       include: [{
         model: User,
@@ -417,9 +417,9 @@ exports.createBooking = async (req, res) => {
     //   return res.status(404).json(sendJson(false, 'Skill not found'));
     // }
 
-     const serviceName = await resolveTalentSkills(talent.skills);
+    const serviceName = await resolveTalentSkills(talent.skills);
 
-      
+
 
     // ✅ Create main booking record
     const booking = await Booking.create({
@@ -459,7 +459,7 @@ exports.createBooking = async (req, res) => {
     }
 
 
-     if (talent.user?.player_id) {
+    if (talent.user?.player_id) {
       // Get first slot for preview
       const firstDate = Object.keys(time_slots)[0];
       const firstTime = time_slots[firstDate]?.[0];
@@ -890,44 +890,60 @@ exports.updateBookingStatus = async (req, res) => {
       );
     }
 
+    const statusReceiverMap = {
+      pending: 'talent',
+      accepted: 'client',
+      rejected: 'client',
+      paymentPending: 'client',
+      isPaid: 'talent',
+      inProgress: 'both',
+      completed: 'both',
+      reviewPending: 'client',
+      talentreviewpending: 'talent',
+      clientreviewpending: 'client',
+      canceledByUser: 'talent',
+      canceledByTalent: 'client'
+    };
+
+
     // const booking = await Booking.findByPk(booking_id);
 
-        const booking = await Booking.findByPk(booking_id, {
-  include: [
-    {
-      model: Client,
-      as: 'client',
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'player_id', 'username']
-      }]
-    },
-    {
-      model: Talent,
-      as: 'talent',
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'player_id', 'username']
-      }]
-    },
-    {
-      model: Skill,
-      as: 'skill',
-      attributes: ['id', 'name']
-    },
-    {
-      model: BookingSlot,
-      as: 'slots',
-      attributes: ['slot_date', 'slot'],
-      order: [['slot_date', 'ASC']]
-    }
-  ]
-});
+    const booking = await Booking.findByPk(booking_id, {
+      include: [
+        {
+          model: Client,
+          as: 'client',
+          include: [{
+            model: User,
+            as: 'user',
+            attributes: ['id', 'player_id', 'username']
+          }]
+        },
+        {
+          model: Talent,
+          as: 'talent',
+          include: [{
+            model: User,
+            as: 'user',
+            attributes: ['id', 'player_id', 'username']
+          }]
+        },
+        {
+          model: Skill,
+          as: 'skill',
+          attributes: ['id', 'name']
+        },
+        {
+          model: BookingSlot,
+          as: 'slots',
+          attributes: ['slot_date', 'slot'],
+          order: [['slot_date', 'ASC']]
+        }
+      ]
+    });
 
-const slotdate = booking.slots.map(s => s.slot_date).join(', ');
-const slottime = booking.slots.map(s => s.slot).join(', ');
+    const slotdate = booking.slots.map(s => s.slot_date).join(', ');
+    const slottime = booking.slots.map(s => s.slot).join(', ');
 
     if (!booking) {
       return res.status(404).json(
@@ -956,40 +972,53 @@ const slottime = booking.slots.map(s => s.slot).join(', ');
     booking.status = status;
     await booking.save();
 
- const template = bookingTemplateMap[status];
-console.log('Notification template for status', status, ':', template);
+    //console.log('Notification template for status', status, ':', template);
 
-if (template) {
-  const receiver =
-    status === "pending"
-      ? booking.talent?.user
-      : booking.client?.user;
+    const receiverType = statusReceiverMap[status];
 
-  console.log('receiver:', receiver);
+    const receivers = [];
 
-  if (receiver?.player_id) {
-    await sendNotificationByTemplate({
-      template,
-      playerIds: [receiver.player_id],
-      variables: {
-        clientName: booking.client?.full_name,
-        talentName: booking.talent?.full_name,
-        otherPartyName:
-          status === "pending"
-            ? booking.client?.full_name
-            : booking.talent?.full_name,
-        serviceName: booking.note ? booking.note.slice(0, 15) : '',
-        date:slotdate,
-        time: slottime
-      },
-      data: {
-        type: "BOOKING_STATUS",
-        bookingId: booking.id,
-        status
+    if (receiverType === 'talent') {
+      receivers.push(booking.talent?.user);
+    }
+
+    if (receiverType === 'client') {
+      receivers.push(booking.client?.user);
+    }
+
+    if (receiverType === 'both') {
+      receivers.push(booking.client?.user, booking.talent?.user);
+    }
+
+    const template = bookingTemplateMap[status];
+
+    if (template) {
+      for (const receiver of receivers) {
+        if (!receiver?.player_id) continue;
+
+        await sendNotificationByTemplate({
+          template,
+          playerIds: [receiver.player_id],
+          variables: {
+            clientName: booking.client?.full_name,
+            talentName: booking.talent?.full_name,
+            otherPartyName:
+              receiver === booking.client?.user
+                ? booking.talent?.full_name
+                : booking.client?.full_name,
+            serviceName: booking.note ? booking.note.slice(0, 15) : '',
+            slotdate,
+            slottime
+          },
+          data: {
+            type: "BOOKING_STATUS",
+            bookingId: booking.id,
+            status
+          }
+        });
       }
-    });
-  }
-}
+    }
+
 
 
     return res.status(200).json(
