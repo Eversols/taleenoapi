@@ -261,7 +261,9 @@ exports.getTalentDetails = async (req, res) => {
   try {
     const { talent_id } = req.query; // Get talent_id from URL parameter
     if (!talent_id) {
-      return res.status(400).json({ success: false, message: "talent_id is required" });
+      return res.status(400).json(
+        sendJson(false, "talent_id is required")
+      );
     }
 
     // Fetch the talent user and their associated talent details
@@ -283,11 +285,23 @@ exports.getTalentDetails = async (req, res) => {
     });
 
     if (!user || !user.talent) {
-      return res.status(404).json({ success: false, message: "Talent not found" });
+      return res.status(404).json(
+        sendJson(false, "Talent not found")
+      );
     }
 
     // Parse skills and availability
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
     const talentSkills = user.talent.skills || [];
+    const talentSkillsWithNames = talentSkills.map(s => ({
+      id: s.id,
+      name: skillsMap[s.id] || null,
+      rate: s.rate
+    }));
     let availabilityHours = 0;
     try {
       const availData = JSON.parse(user.talent.availability || '[]');
@@ -307,7 +321,7 @@ exports.getTalentDetails = async (req, res) => {
       const likes = await sequelize.models.MediaLike.count({ where: { media_id: media.id } });
       const views = media.views || 0;
       return {
-        type: media.type || 'image', // default to image if not specified
+        type: media.type || 'image',
         url: media.fileUrl?.startsWith('http') ? media.fileUrl : `${process.env.APP_URL}/${media.fileUrl}`,
         likes,
         views
@@ -319,20 +333,27 @@ exports.getTalentDetails = async (req, res) => {
       talent: {
         title: user.talent.main_talent || user.talent.full_name,
         description: user.talent.description || `Expert in ${user.talent.main_talent || 'their field'}`,
-        skills: talentSkills.map(s => s.name).join(', '),
+        skills: talentSkillsWithNames,
         availabilityHours,
         profilePhoto: user.talent.profile_photo?.startsWith('http') ? user.talent.profile_photo : `${process.env.APP_URL}/${user.talent.profile_photo}`,
         contents
       }
     };
 
-    return res.status(200).json({ success: true, message: "Talent details retrieved successfully", ...response });
+    return res.status(200).json(
+      sendJson(true, "Talent details retrieved successfully", response)
+    );
 
   } catch (error) {
     console.error('Get Talent Details Error:', error);
-    return res.status(500).json({ success: false, message: "Failed to retrieve talent details", error: error.message });
+    return res.status(500).json(
+      sendJson(false, "Failed to retrieve talent details", {
+        error: error.message
+      })
+    );
   }
 };
+
 
 
 
