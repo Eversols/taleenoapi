@@ -898,7 +898,7 @@ exports.updateBookingStatus = async (req, res) => {
       isPaid: 'talent',
       inProgress: 'both',
       completed: 'both',
-      reviewPending: 'client',
+      reviewPending: 'both',
       talentreviewpending: 'talent',
       clientreviewpending: 'client',
       canceledByUser: 'talent',

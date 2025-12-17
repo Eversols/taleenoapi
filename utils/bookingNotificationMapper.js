@@ -6,6 +6,8 @@ module.exports = {
   inProgress: "sessionStarted",
   completed: "sessionCompleted",
   reviewPending: "appointmentComplete",
+  talentReviewPending: "appointmentComplete",
+  clientReviewPending: "appointmentComplete",
   requestedForRescheduleByUser: "rescheduled",
   requestedForRescheduleByTalent: "rescheduled",
   canceledByUser: "cancelAppointment",
