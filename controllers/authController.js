@@ -293,8 +293,7 @@ exports.loginWithPhone = async (req, res) => {
 
     await user.update({
       verification_code: otp,
-      verification_code_expire: otpExpire,
-        player_id: player_id
+      verification_code_expire: otpExpire
     });
 
     return res.status(200).json(

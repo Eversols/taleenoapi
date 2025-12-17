@@ -893,12 +893,42 @@ exports.updateBookingStatus = async (req, res) => {
     // const booking = await Booking.findByPk(booking_id);
 
         const booking = await Booking.findByPk(booking_id, {
-            include: [
-              { model: User, as: "client" },
-              { model: User, as: "talent" },
-              { model: Skill, as: "skill" }
-            ]
-          });
+  include: [
+    {
+      model: Client,
+      as: 'client',
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'player_id', 'username']
+      }]
+    },
+    {
+      model: Talent,
+      as: 'talent',
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'player_id', 'username']
+      }]
+    },
+    {
+      model: Skill,
+      as: 'skill',
+      attributes: ['id', 'name']
+    },
+    {
+      model: BookingSlot,
+      as: 'slots',
+      attributes: ['slot_date', 'slot'],
+      order: [['slot_date', 'ASC']]
+    }
+  ]
+});
+
+const slotdate = booking.slots.map(s => s.slot_date).join(', ');
+const slottime = booking.slots.map(s => s.slot).join(', ');
+
     if (!booking) {
       return res.status(404).json(
         sendJson(false, 'Booking not found')
@@ -926,32 +956,41 @@ exports.updateBookingStatus = async (req, res) => {
     booking.status = status;
     await booking.save();
 
-      // Notification
-    const template = bookingTemplateMap[status];
-    if (template) {
-      const receiver =
-        status === "pending" ? booking.talent : booking.client;
+ const template = bookingTemplateMap[status];
+console.log('Notification template for status', status, ':', template);
 
-      if (receiver?.player_id) {
-        await sendNotificationByTemplate({
-          template,
-          playerIds: [receiver.oneSignalPlayerId],
-          variables: {
-            clientName: booking.client?.name,
-            talentName: booking.talent?.name,
-            otherPartyName: booking.client?.name,
-            serviceName: booking.skill?.name,
-            date: booking.booking_date,
-            time: booking.time_slot
-          },
-          data: {
-            type: "BOOKING_STATUS",
-            bookingId: booking.id,
-            status
-          }
-        });
+if (template) {
+  const receiver =
+    status === "pending"
+      ? booking.talent?.user
+      : booking.client?.user;
+
+  console.log('receiver:', receiver);
+
+  if (receiver?.player_id) {
+    await sendNotificationByTemplate({
+      template,
+      playerIds: [receiver.player_id],
+      variables: {
+        clientName: booking.client?.full_name,
+        talentName: booking.talent?.full_name,
+        otherPartyName:
+          status === "pending"
+            ? booking.client?.full_name
+            : booking.talent?.full_name,
+        serviceName: booking.note ? booking.note.slice(0, 15) : '',
+        date:slotdate,
+        time: slottime
+      },
+      data: {
+        type: "BOOKING_STATUS",
+        bookingId: booking.id,
+        status
       }
-    }
+    });
+  }
+}
+
 
     return res.status(200).json(
       sendJson(true, 'Booking status updated successfully', { updated_booking: booking })

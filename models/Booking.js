@@ -38,8 +38,8 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Booking.associate = (models) => {
-    Booking.belongsTo(models.User, { foreignKey: 'client_id', as: 'client' });
-    Booking.belongsTo(models.User, { foreignKey: 'talent_id', as: 'talent' });
+    Booking.belongsTo(models.Client, { foreignKey: 'client_id', as: 'client' });
+    Booking.belongsTo(models.Talent, { foreignKey: 'talent_id', as: 'talent' });
     Booking.belongsTo(models.Skill, { foreignKey: 'skill_id', as: 'skill' });
     Booking.hasMany(models.BookingSlot, { foreignKey: 'booking_id', as: 'slots' });
   };
