@@ -1550,6 +1550,57 @@ exports.rescheduleBooking = async (req, res) => {
       throw err;
     }
 
+    const slotdate = Array.isArray(new_date) ? new_date.map(s => s.slot_date).join(', ') : new_date;
+    const slottime = Array.isArray(new_time) ? new_time.map(s => s.slot).join(', ') : new_time;
+
+
+    const booking = await Booking.findByPk(booking_id, {
+        include: [
+          {
+            model: Client,
+            as: 'client',
+            include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+          },
+          {
+            model: Talent,
+            as: 'talent',
+            include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+          },
+          {
+            model: BookingSlot,
+            as: 'slots',
+            attributes: ['slot_date', 'slot']
+          }
+        ]
+      });
+
+      const receiver =
+      role === 'client'
+        ? booking.talent?.user   // client requested → notify talent
+        : booking.client?.user;  // talent requested → notify client
+
+        //console.log('Reschedule receiver:', receiver);
+
+        if (receiver?.player_id) {
+  await sendNotificationByTemplate({
+    template: 'rescheduled',
+    playerIds: [receiver.player_id],
+    variables: {
+      serviceName:  booking.note ? booking.note.slice(0, 15) : '',
+      newDate: slotdate,
+      newTime: slottime 
+    },
+    data: {
+      type: 'BOOKING_RESCHEDULE',
+      bookingId: booking.id,
+      requestedBy: role
+    }
+  });
+}
+
+
+
+
     // 🟢 Final response
     return res.status(200).json(
       sendJson(true, "Booking reschedule request created/updated successfully", {
@@ -2185,11 +2236,62 @@ exports.approveReschedule = async (req, res) => {
       await slot.save();
     }
 
+
+
     // reschedule.status = 'accepted';
     reschedule.status = 'accepted';
     reschedule.request_by = role;
     reschedule.request_user_id = userId;
     await reschedule.save();
+
+    
+     const slotdate = Array.isArray(reschedule.new_date) ? reschedule.new_date.map(s => s.slot_date).join(', ') : reschedule.new_date;
+    const slottime = Array.isArray(reschedule.new_time) ? reschedule.new_time.map(s => s.slot).join(', ') : reschedule.new_time;
+
+
+    const booking = await Booking.findByPk(reschedule.booking_id, {
+        include: [
+          {
+            model: Client,
+            as: 'client',
+            include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+          },
+          {
+            model: Talent,
+            as: 'talent',
+            include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+          },
+          {
+            model: BookingSlot,
+            as: 'slots',
+            attributes: ['slot_date', 'slot']
+          }
+        ]
+      });
+
+      const receiver =
+      role === 'client'
+        ? booking.talent?.user   // client requested → notify talent
+        : booking.client?.user;  // talent requested → notify client
+ 
+
+         if (receiver?.player_id) {
+      await sendNotificationByTemplate({
+        template: 'rescheduleApproved',
+        playerIds: [receiver.player_id],
+        variables: {
+          otherPartyName: receiver.full_name,
+          serviceName: booking.note ? booking.note.slice(0, 15) : '',
+          newDate: slotdate,
+          newTime: slottime
+        },
+        data: {
+          type: 'BOOKING_RESCHEDULE_APPROVED',
+          bookingId: booking.id,
+          approvedBy: role
+        }
+      });
+    }
 
     return res.status(200).json(sendJson(true, "Reschedule approved successfully"));
   } catch (error) {
@@ -2217,6 +2319,51 @@ exports.rejectReschedule = async (req, res) => {
     reschedule.request_by = role;
     reschedule.request_user_id = userId;
     await reschedule.save();
+
+    
+
+    const booking = await Booking.findByPk(reschedule.booking_id, {
+        include: [
+          {
+            model: Client,
+            as: 'client',
+            include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+          },
+          {
+            model: Talent,
+            as: 'talent',
+            include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+          },
+          {
+            model: BookingSlot,
+            as: 'slots',
+            attributes: ['slot_date', 'slot']
+          }
+        ]
+      });
+
+      const receiver =
+      role === 'client'
+        ? booking.talent?.user   // client requested → notify talent
+        : booking.client?.user;  // talent requested → notify client
+
+        console.log('Reschedule receiver:', receiver);
+
+         if (receiver?.player_id) {
+      await sendNotificationByTemplate({
+        template: 'rescheduleRejected',
+        playerIds: [receiver.player_id],
+        variables: {
+          otherPartyName: receiver.full_name,
+          serviceName: booking.note ? booking.note.slice(0, 15) : ''
+        },
+        data: {
+          type: 'BOOKING_RESCHEDULE_REJECTED',
+          bookingId: booking.id,
+          approvedBy: role
+        }
+      });
+    }
 
     return res.status(200).json(sendJson(true, "Reschedule request rejected successfully"));
   } catch (error) {

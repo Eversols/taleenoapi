@@ -1,4 +1,4 @@
-const { Media, Skill ,sequelize } = require('../models');
+const { Media, Skill ,sequelize,User } = require('../models');
 const path = require('path');
 const { sendJson } = require('../utils/helpers');
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
@@ -423,18 +423,21 @@ exports.like = async (req, res) => {
       const likesCount = await sequelize.models.MediaLike.count({
         where: { media_id: id }
       });
+      console.log("Preparing to send like notification...",media.userId);
+       const receiver = await User.findByPk(media.userId);
+
+      console.log("Preparing to send like notification...",receiver);
       
           // 🔔 SEND NOTIFICATION (safe)
       if (
-        media?.user?.player_id &&
-        media.user.id !== userId
+        receiver?.player_id  
       ) {
         try {
           await sendNotificationByTemplate({
             template: "liked",
-            playerIds: [media.user.player_id],
+            playerIds: [receiver.player_id],
             variables: {
-              userName: req.user.full_name || req.user.username,
+              userName: receiver.full_name || receiver.username,
               serviceName: media.title || "your media"
             },
             data: {

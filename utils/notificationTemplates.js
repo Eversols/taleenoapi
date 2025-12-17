@@ -87,5 +87,16 @@ module.exports = {
     title: "Added to Wishlist ⭐",
     message: ({ userName, serviceName }) =>
       `${userName} added your service ${serviceName} to their wishlist.`
+  },  
+  rescheduleApproved: {
+    title: "Reschedule Approved",
+    message: ({ otherPartyName, serviceName, newDate, newTime }) =>
+      `Your reschedule request for ${serviceName} with ${otherPartyName} has been approved. The new schedule is ${newDate} at ${newTime}.`
+  },
+
+  rescheduleRejected: {
+    title: "Reschedule Rejected",
+    message: ({ otherPartyName, serviceName }) =>
+      `Your reschedule request for ${serviceName} with ${otherPartyName} has been rejected. Please contact them for further details.`
   }
 };
