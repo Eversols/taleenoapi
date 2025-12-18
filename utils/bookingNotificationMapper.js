@@ -1,6 +1,7 @@
 module.exports = {
   pending: "newRequest",
   accepted: "requestAccepted",
+  paymentPending: "requestAccepted",
   rejected: "requestRejected",
   isPaid: "requestPaymentPaid",
   inProgress: "sessionStarted",
@@ -12,5 +13,5 @@ module.exports = {
   requestedForRescheduleByTalent: "rescheduled",
   canceledByUser: "cancelAppointment",
   canceledByTalent: "cancelAppointment",
-  confirm: "upcomingSession"
+  confirm: "confirmSession"
 };

@@ -22,6 +22,8 @@ const BookingStatusEnum = [
   'reviewPending',
   'requestedForRescheduleByUser',
   'requestedForRescheduleByTalent',
+  'talentReviewPending',
+  'clientReviewPending',
   'canceledByUser',
   'canceledByTalent',
   'isPaid',
@@ -892,15 +894,16 @@ exports.updateBookingStatus = async (req, res) => {
 
     const statusReceiverMap = {
       pending: 'talent',
-      accepted: 'client',
+      accepted: 'both',
       rejected: 'client',
       paymentPending: 'client',
       isPaid: 'talent',
       inProgress: 'both',
       completed: 'both',
+      confirm: 'both',
       reviewPending: 'both',
-      talentreviewpending: 'talent',
-      clientreviewpending: 'client',
+      talentReviewPending: 'talent',
+      clientReviewPending: 'client',
       canceledByUser: 'talent',
       canceledByTalent: 'client'
     };
@@ -992,6 +995,9 @@ exports.updateBookingStatus = async (req, res) => {
 
     const template = bookingTemplateMap[status];
 
+    console.log('Receivers for status', status, ':', receivers.map(r => r?.username || 'N/A'));
+    console.log('Using template:', template);
+
     if (template) {
       for (const receiver of receivers) {
         if (!receiver?.player_id) continue;
@@ -1011,7 +1017,7 @@ exports.updateBookingStatus = async (req, res) => {
             slottime
           },
           data: {
-            type: "BOOKING_STATUS",
+            type: "bookingStatus",
             bookingId: booking.id,
             status
           }

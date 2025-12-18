@@ -30,9 +30,9 @@ module.exports = {
   },
 
   sessionCompleted: {
-    title: "Session Completed",
+    title: "Booking Completed",
     message: ({ serviceName, otherPartyName }) =>
-      `Your session for ${serviceName} with ${otherPartyName} has been completed. We hope it went well.`
+      `Your booking for ${serviceName} with ${otherPartyName} has been completed. We hope it went well.`
   },
 
   rescheduled: {
@@ -60,15 +60,21 @@ module.exports = {
   },
 
   appointmentComplete: {
-    title: "Appointment Completed",
+    title: "Booking Completed",
     message: ({ serviceName }) =>
-      `Your appointment for ${serviceName} has been successfully completed. Thank you for using our platform.`
+      `Your booking for ${serviceName} has been successfully completed. Thank you for using our platform. Please consider leaving a review.`
   },
 
   upcomingSession: {
     title: "Upcoming Session",
     message: ({ serviceName, otherPartyName, date, time }) =>
       `You have an upcoming session for ${serviceName} with ${otherPartyName} on ${date} at ${time}.`
+  },
+
+   confirmSession: {
+    title: "Booking Confirmed",
+    message: ({ serviceName, otherPartyName, date, time }) =>
+      `Your booking has been confirmed for ${serviceName} with ${otherPartyName}`
   },
 
   notAvailable: {
