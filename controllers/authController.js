@@ -5,8 +5,15 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
 const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,Like,BookingSlot,Country,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
+
+const { Taqnyat } = require("../services/Taqnyat");
 const path = require("path");
 const fs = require("fs");
+
+const smsClient = new Taqnyat(
+  process.env.TAQNYAT_TOKEN,
+  process.env.TAQNYAT_SENDER
+);
 
 exports.register = async (req, res) => {
   try {
@@ -36,8 +43,7 @@ exports.register = async (req, res) => {
       where: {
         [Op.or]: [
           { username },
-          { phone_number },
-          { player_id }
+          { phone_number } 
         ]
       }
     });
@@ -107,23 +113,54 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone_number, code } = req.body;
 
-    const user = await User.findOne({
-      where: {
-        phone_number,
-        verification_code: code,
-        verification_code_expire: { [Op.gt]: new Date() }
-      },
-      include: [
-        {
-          association: 'talent',
-          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
-        },
-        {
-          association: 'client',
-          attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
-        }
-      ]
-    });
+  
+      if (!phone_number || !code) {
+        return res.status(400).json(
+          sendJson(false, "phone_number and code are required")
+        );
+      }
+
+      let user;
+
+      // Master / bypass OTP
+
+      console.log("Verifying OTP code:", code);
+      if (code == '0000') {
+         user = await User.findOne({
+            where: {
+              phone_number 
+            },
+            include: [
+              {
+                association: 'talent',
+                attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+              },
+              {
+                association: 'client',
+                attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+              }
+            ]
+          });
+      } else {
+         user = await User.findOne({
+            where: {
+              phone_number,
+              verification_code: code,
+              verification_code_expire: { [Op.gt]: new Date() }
+            },
+            include: [
+              {
+                association: 'talent',
+                attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+              },
+              {
+                association: 'client',
+                attributes: { exclude: ['user_id', 'createdAt', 'updatedAt'] }
+              }
+            ]
+          });
+      }
+
 
     if (!user) {
       return res.status(400).json({ status: false, message: 'Invalid or expired OTP' });
@@ -287,8 +324,8 @@ exports.loginWithPhone = async (req, res) => {
         break;
     }
     // Generate OTP
-    // const otp = generateOTP();
-    const otp = "1234";
+     const otp = generateOTP();
+    //const otp = "1234";
     const otpExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await user.update({
@@ -296,10 +333,40 @@ exports.loginWithPhone = async (req, res) => {
       verification_code_expire: otpExpire,
         player_id: player_id
     });
+ 
+
+    // -------- PHONE FORMATTING --------
+    let formattedPhone = phone_number.replace(/\D/g, '');
+
+    if (!formattedPhone.startsWith('966')) {
+      formattedPhone = '966' + formattedPhone.replace(/^0/, '');
+    }
+
+    formattedPhone = '+' + formattedPhone;
+
+   
+
+    // -------- SEND SMS --------
+    const smsMessage = `Your verification code is ${otp}. It will expire in 10 minutes.`;
+
+    const smsResponse = await smsClient.sendSMS(
+      smsMessage,
+      formattedPhone,
+      null
+    );
+
+    console.log("Formatted Phone:", formattedPhone);
+    console.log("SMS Response:", smsResponse);
+
+    if (!smsResponse || smsResponse.status === "failed") {
+      return res.status(500).json(
+        sendJson(false, "Failed to send OTP SMS")
+      );
+    }
 
     return res.status(200).json(
       sendJson(true, 'OTP sent to your phone number', {
-        phone_number: phone_number.slice(-4), // Show last 4 digits for confirmation
+        phone_number: formattedPhone.slice(-4), // Show last 4 digits for confirmation
         code: user.verification_code
       })
     );
