@@ -291,11 +291,6 @@ exports.loginWithPhone = async (req, res) => {
     const user = await User.findOne({ where: { 
         phone_number: phone_number
       } });
-    if (!player_id) {
-      return res.status(404).json(
-        sendJson(false, 'player_id are required')
-      );
-    }
 
     if (!user) {
       return res.status(404).json(
@@ -331,7 +326,7 @@ exports.loginWithPhone = async (req, res) => {
     await user.update({
       verification_code: otp,
       verification_code_expire: otpExpire,
-        player_id: player_id
+      player_id: player_id || null
     });
  
 
