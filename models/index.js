@@ -77,6 +77,16 @@ if (db.User && db.Follow) {
     foreignKey: 'followingId',
     as: 'following'
   });
+  db.Media.belongsTo(db.User, {
+  foreignKey: 'userId',
+  as: 'User'
+  });
+
+  db.User.hasMany(db.Media, {
+    foreignKey: 'userId',
+    as: 'media'
+  });
+
 }
 
 db.sequelize = sequelize;
