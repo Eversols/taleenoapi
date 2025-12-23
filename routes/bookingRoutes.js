@@ -20,5 +20,5 @@ router.get("/status", authenticate,bookingController.getPaymentStatus);
 
 router.put('/reschedule/approve/:id', authenticate, bookingController.approveReschedule);
 router.put('/reschedule/reject/:id', authenticate, bookingController.rejectReschedule);
-router.get("/pay", authenticate , bookingController.pay);
+router.get("/pay", bookingController.pay);
 module.exports = router;
