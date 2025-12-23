@@ -2378,42 +2378,415 @@ exports.rejectReschedule = async (req, res) => {
     return res.status(500).json(sendJson(false, "Failed to reject reschedule", { error: error.message }));
   }
 };
+// Make sure you import your models at the top
+// const { Booking, Client, Talent, BookingSlot, User } = require('../models');
+
 exports.pay = async (req, res) => {
   try {
-    const { checkoutId } = req.query;
+    const { checkoutId, bookingId } = req.query;
 
     if (!checkoutId) {
       return res.status(400).send("checkoutId is required");
     }
+    if (!bookingId) {
+      return res.status(400).send("bookingId is required");
+    }
+
+    // Get booking details from database
+    const booking = await Booking.findByPk(bookingId, {
+      include: [
+        {
+          model: Client,
+          as: 'client',
+          include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+        },
+        {
+          model: Talent,
+          as: 'talent',
+          include: [{ model: User, as: 'user', attributes: ['player_id', 'username'] }]
+        },
+        {
+          model: BookingSlot,
+          as: 'slots',
+          attributes: ['slot_date', 'slot']
+        }
+      ]
+    });
+
+    if (!booking) {
+      return res.status(404).send("Booking not found");
+    }
+
+    // Extract booking details safely
+    const username = booking.client?.user?.username || booking.talent?.user?.username || 'Guest';
+    const phone = booking.client?.user?.phone || booking.talent?.user?.phone || 'N/A';
+    const originalPrice = parseFloat(booking.price || booking.amount || 0);
+    const discountAmount = parseFloat(booking.discount || 0);
+    const taxAmount = parseFloat(booking.tax || 0);
+    const finalPrice = originalPrice;
+    const displayBookingId = booking.id || '';
+
+    // Send HTML page
     res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <title>HyperPay Checkout</title>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Complete Payment</title>
+        <script src="https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}"></script>
+       <style>
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
 
-          <script src="https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}"></script>
-
-          <style>
             body {
-              font-family: Arial, sans-serif;
-              padding: 40px;
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              padding: 20px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .payment-container {
+              width: 100%;
+              max-width: 500px;
+              margin: 0 auto;
+            }
+
+            /* Booking Details Card */
+            .booking-details {
+              background: white;
+              padding: 24px;
+              border-radius: 12px;
+              margin-bottom: 20px;
+              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .booking-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 20px;
+              padding-bottom: 16px;
+              border-bottom: 2px solid #f0f0f0;
+            }
+
+            .booking-header h2 {
+              font-size: 20px;
+              color: #333;
+              font-weight: 600;
+            }
+
+            .booking-id {
+              background: #667eea;
+              color: white;
+              padding: 6px 12px;
+              border-radius: 20px;
+              font-size: 12px;
+              font-weight: 600;
+            }
+
+            .detail-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 12px 0;
+              border-bottom: 1px solid #f5f5f5;
+            }
+
+            .detail-row:last-child {
+              border-bottom: none;
+            }
+
+            .detail-label {
+              font-size: 14px;
+              color: #666;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+
+            .detail-label svg {
+              width: 18px;
+              height: 18px;
+              color: #667eea;
+            }
+
+            .detail-value {
+              font-size: 15px;
+              color: #333;
+              font-weight: 600;
+            }
+
+            .price-section {
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 2px solid #f0f0f0;
+            }
+
+            .price-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 8px 0;
+            }
+
+            .price-label {
+              font-size: 14px;
+              color: #666;
+            }
+
+            .price-value {
+              font-size: 15px;
+              color: #333;
+              font-weight: 600;
+            }
+
+            .discount-row {
+              color: #10b981;
+            }
+
+            .discount-row .price-label,
+            .discount-row .price-value {
+              color: #10b981;
+            }
+
+            .total-row {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 16px;
+              border-radius: 8px;
+              margin-top: 12px;
+            }
+
+            .total-row .price-label,
+            .total-row .price-value {
+              color: white;
+              font-size: 18px;
+              font-weight: 700;
+            }
+
+            /* Payment Form Card */
+            .payment-form-card {
+              background: white;
+              padding: 24px;
+              border-radius: 12px;
+              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .payment-title {
+              font-size: 18px;
+              color: #333;
+              font-weight: 600;
+              margin-bottom: 20px;
+              padding-bottom: 12px;
+              border-bottom: 2px solid #f0f0f0;
+            }
+
+            .paymentWidgets {
+              width: 100%;
+            }
+
+            /* Override HyperPay widget styles for mobile */
+            .paymentWidgets .wpwl-wrapper {
+              width: 100% !important;
+            }
+
+            .paymentWidgets .wpwl-form {
+              width: 100% !important;
+            }
+
+            .paymentWidgets .wpwl-control {
+              width: 100% !important;
+              padding: 12px !important;
+              font-size: 16px !important;
+              border: 1px solid #ddd !important;
+              border-radius: 8px !important;
+            }
+
+            .paymentWidgets .wpwl-button {
+              width: 100% !important;
+              padding: 14px !important;
+              font-size: 16px !important;
+              margin-top: 10px !important;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+              border: none !important;
+              border-radius: 8px !important;
+              font-weight: 600 !important;
+            }
+
+            .paymentWidgets .wpwl-button:hover {
+              opacity: 0.9 !important;
+            }
+
+            .paymentWidgets .wpwl-group {
+              margin-bottom: 15px !important;
+            }
+
+            .paymentWidgets .wpwl-label {
+              font-size: 14px !important;
+              margin-bottom: 5px !important;
+              display: block !important;
+              color: #666 !important;
+              font-weight: 500 !important;
+            }
+
+            /* Responsive adjustments for different screen sizes */
+            @media (max-width: 768px) {
+              body {
+                padding: 15px;
+              }
+
+              .booking-details,
+              .payment-form-card {
+                padding: 20px;
+              }
+
+              .booking-header h2 {
+                font-size: 18px;
+              }
+
+              .paymentWidgets .wpwl-control {
+                font-size: 16px !important;
+              }
+            }
+
+            @media (max-width: 480px) {
+              body {
+                padding: 10px;
+              }
+
+              .booking-details,
+              .payment-form-card {
+                padding: 16px;
+                border-radius: 10px;
+              }
+
+              .booking-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+              }
+
+              .booking-header h2 {
+                font-size: 16px;
+              }
+
+              .detail-label,
+              .detail-value {
+                font-size: 13px;
+              }
+
+              .price-label,
+              .price-value {
+                font-size: 14px;
+              }
+
+              .total-row .price-label,
+              .total-row .price-value {
+                font-size: 16px;
+              }
+
+              .payment-title {
+                font-size: 16px;
+              }
+
+              .paymentWidgets .wpwl-control {
+                padding: 10px !important;
+              }
+
+              .paymentWidgets .wpwl-button {
+                padding: 12px !important;
+              }
+            }
+
+            /* Ensure brand logos are responsive */
+            .paymentWidgets .wpwl-brand-card {
+              max-width: 100% !important;
+              height: auto !important;
+            }
+
+            /* Google Pay and Apple Pay buttons */
+            .paymentWidgets .wpwl-brand-APPLEPAY,
+            .paymentWidgets .wpwl-brand-GOOGLEPAY {
+              width: 100% !important;
+              margin: 10px 0 !important;
+            }
+
+            /* Secure payment badge */
+            .secure-badge {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              margin-top: 20px;
+              padding: 12px;
+              background: #f0fdf4;
+              border-radius: 8px;
+              color: #166534;
+              font-size: 13px;
+              font-weight: 500;
+            }
+
+            .secure-badge svg {
+              width: 20px;
+              height: 20px;
             }
           </style>
-        </head>
-        <body>
+      </head>
+      <body>
+        <div class="payment-container">
+          <div class="booking-details">
+            <div class="booking-header">
+              <h2>Booking Details</h2>
+              ${displayBookingId ? `<span class="booking-id">#${displayBookingId}</span>` : ''}
+            </div>
 
-          <form
-            action="/result"
-            class="paymentWidgets"
-            data-brands="MADA VISA MASTER AMEX APPLEPAY GOOGLEPAY">
-          </form>
+            <div class="detail-row">
+              <div class="detail-label">Customer Name</div>
+              <div class="detail-value">${username}</div>
+            </div>
 
-        </body>
-        </html>
+            <div class="price-section">
+              <div class="price-row">
+                <div class="price-label">Original Price</div>
+                <div class="price-value">SAR ${originalPrice.toFixed(2)}</div>
+              </div>
+
+              ${discountAmount > 0 ? `
+              <div class="price-row discount-row">
+                <div class="price-label">Discount</div>
+                <div class="price-value">- SAR ${discountAmount.toFixed(2)}</div>
+              </div>` : ''}
+
+              <div class="price-row total-row">
+                <div class="price-label">Total Amount</div>
+                <div class="price-value">SAR ${finalPrice.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="payment-form-card">
+            <div class="payment-title">Payment Method</div>
+            <form
+              action="/result"
+              class="paymentWidgets"
+              data-brands="MADA VISA MASTER AMEX APPLEPAY GOOGLEPAY">
+            </form>
+          </div>
+        </div>
+      </body>
+      </html>
     `);
   } catch (error) {
     console.error(error);
     res.status(500).send("Unable to load payment page");
   }
 };
+
+
