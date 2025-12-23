@@ -2378,3 +2378,42 @@ exports.rejectReschedule = async (req, res) => {
     return res.status(500).json(sendJson(false, "Failed to reject reschedule", { error: error.message }));
   }
 };
+exports.pay = async (req, res) => {
+  try {
+    const { checkoutId } = req.query;
+
+    if (!checkoutId) {
+      return res.status(400).send("checkoutId is required");
+    }
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <title>HyperPay Checkout</title>
+
+          <script src="https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}"></script>
+
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 40px;
+            }
+          </style>
+        </head>
+        <body>
+
+          <form
+            action="/result"
+            class="paymentWidgets"
+            data-brands="MADA VISA MASTER AMEX APPLEPAY GOOGLEPAY">
+          </form>
+
+        </body>
+        </html>
+    `);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Unable to load payment page");
+  }
+};
