@@ -36,7 +36,7 @@ exports.getMetaData = async (req, res) => {
     `);
 
     const rateRange = rateRangeResult[0] || { min_rate: null, max_rate: null };
-
+    rateRange.min_rate = 0;
     return res.status(200).json(
       sendJson(true, 'Meta data retrieved successfully', {
         skills,
