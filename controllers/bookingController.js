@@ -3261,7 +3261,7 @@ exports.pay = async (req, res) => {
               
               <div class="transaction-item">
                 <div class="transaction-label">Transaction ID</div>
-                <div class="transaction-value">${checkoutId}</div>
+                <div class="transaction-value">${checkoutId.length > 10 ? "....." + checkoutId.slice(-10) : checkoutId}</div>
               </div>
             </div>
 
