@@ -3248,25 +3248,20 @@ exports.pay = async (req, res) => {
             
             <div class="transaction-row">
               <div class="transaction-item">
-                <div class="transaction-label">Amount Paid</div>
+                <div class="transaction-label">Amount</div>
                 <div class="transaction-value">SAR ${finalPrice.toFixed(2)}</div>
-              </div>
-              
-              <div class="transaction-item">
-                <div class="transaction-label">Payment Method</div>
-                <div class="transaction-value">${paymentMethod}</div>
               </div>
             </div>
             
             <div class="transaction-row">
               <div class="transaction-item">
-                <div class="transaction-label">Date & Time</div>
-                <div class="transaction-value">${bookingDate}, ${bookingTime}</div>
+                <div class="transaction-label">Date</div>
+                <div class="transaction-value">${bookingDate}</div>
               </div>
               
               <div class="transaction-item">
                 <div class="transaction-label">Transaction ID</div>
-                <div class="transaction-value">${transactionId}</div>
+                <div class="transaction-value">${checkoutId}</div>
               </div>
             </div>
 
