@@ -1723,8 +1723,7 @@ exports.createCheckout = async (req, res) => {
         user_id: req.user.id,
         transaction_id: merchantTransactionId,
         amount: parseFloat(amount).toFixed(2),
-        currency: "SAR",
-        status: "PENDING",
+        currency: "SAR", 
         checkout_id: response.id,
         payment_type: "DB"
       });
@@ -1734,8 +1733,7 @@ exports.createCheckout = async (req, res) => {
         user_id: req.user.id,
         transaction_id: merchantTransactionId,
         amount: parseFloat(amount).toFixed(2),
-        currency: "SAR",
-        status: "PENDING",
+        currency: "SAR", 
         checkout_id: response.id,
         payment_type: "DB"
       });
