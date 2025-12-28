@@ -182,7 +182,7 @@ exports.getFeed = async (req, res) => {
       const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
         id: s.id,
         name: skillsMap[s.id] || null,
-        rate: s.rate
+        rate: s.rate.toString()
       }));
       const likesCount = await sequelize.models.MediaLike.count({
         where: { media_id: media.id }

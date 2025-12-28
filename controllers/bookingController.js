@@ -1638,19 +1638,20 @@ exports.createCheckout = async (req, res) => {
   try {
     const {
       amount,
-      merchantTransactionId,
-      email,
-      street,
-      city,
-      state,
-      country,
-      postcode,
-      givenName,
-      surname,
+      merchantTransactionId, 
       booking_id // <-- must come from req.body if updating
     } = req.body;
 
-    if (!amount || !email || !merchantTransactionId || !booking_id) {
+
+     const clientdetails = await Client.findOne({ where: { user_id: req.user.id } });
+
+    if (!clientdetails) {
+      return res.status(404).json(sendJson(false, "Client not found"));
+    }
+    
+    console.log("client:", clientdetails); 
+
+    if (!amount  || !merchantTransactionId || !booking_id) {
       return res.status(400).json(sendJson(false, "Missing required fields"));
     }
  
@@ -1664,15 +1665,18 @@ exports.createCheckout = async (req, res) => {
       testMode: "EXTERNAL",
       "customParameters[3DS2_enrolled]": "true",
       merchantTransactionId,
-      "customer.email": email,
-      "billing.street1": street,
-      "billing.city": city,
-      "billing.state": state,
-      "billing.country": country,
-      "billing.postcode": postcode,
-      "customer.givenName": givenName,
-      "customer.surname": surname
+      "customer.email": req.user.email,
+      "billing.street1": clientdetails.city || "N/A",
+      "billing.city": clientdetails.city || "N/A",
+      "billing.state": clientdetails.city || "N/A",
+      "billing.country": clientdetails.country || "N/A",
+      "billing.postcode": clientdetails.country || "N/A",
+      "customer.givenName": clientdetails.full_name,
+      "customer.surname": clientdetails.full_name
     });
+
+    //console.log("HyperPay Checkout Data:", data);
+    
 
     // HTTPS request options
     const options = {
