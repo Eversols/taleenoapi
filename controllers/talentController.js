@@ -302,10 +302,10 @@ exports.getTalentDetails = async (req, res) => {
       name: skillsMap[s.id] || null,
       rate: s.rate
     }));
-    let availabilityHours = 0;
+    let availabilityHours = user.availability;
     try {
       const availData = JSON.parse(user.talent.availability || '[]');
-      availabilityHours = availData.reduce((sum, slot) => sum + (slot.hours || 0), 0);
+      availabilityHours = user.availability;
     } catch (err) {
       console.error("Error parsing availability:", err.message);
     }
