@@ -15,8 +15,7 @@ exports.getFeed = async (req, res) => {
       searchWhere = {
         [Op.or]: [
           { '$User.username$': { [Op.like]: `%${searchText}%` } },
-          { '$User.talent.full_name$': { [Op.like]: `%${searchText}%` } },
-          { title: { [Op.like]: `%${searchText}%` } }
+          { '$User.talent.full_name$': { [Op.like]: `%${searchText}%` } }
         ]
       };
     }
@@ -251,6 +250,7 @@ exports.getFeed = async (req, res) => {
     );
   }
 };
+
 exports.AdminFeed = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL;
