@@ -1649,7 +1649,7 @@ exports.createCheckout = async (req, res) => {
       return res.status(404).json(sendJson(false, "Client not found"));
     }
     
-    console.log("client:", clientdetails); 
+    //console.log("client:", clientdetails); 
 
     if (!amount  || !merchantTransactionId || !booking_id) {
       return res.status(400).json(sendJson(false, "Missing required fields"));
@@ -1767,30 +1767,41 @@ exports.getPaymentStatus = async (req, res) => {
   try {
     const { checkoutId, booking_id } = req.query;
 
-    // Call HyperPay to get payment status
-    const response = await axios.get(
-      `https://eu-test.oppwa.com/v1/checkouts/${checkoutId}/payment?entityId=8ac7a4c79483092601948366b9d1011b`,
-      {
+    if (!checkoutId) {
+      return res.status(400).json(sendJson(false, "checkoutId is required"));
+    }
+
+    // Use same host as checkout creation
+    const host = process.env.HYPERPAY_HOST || "test.oppwa.com";
+
+    const url = `https://${host}/v1/checkouts/${checkoutId}/payment?entityId=${process.env.HYPERPAY_ENTITY_ID}`;
+
+    let response;
+    try {
+      response = await axios.get(url, {
         headers: {
-          Authorization:
-            "Bearer OGFjN2E0Yzc5NDgzMDkyNjAxOTQ4MzY2MzY1ZDAxMTZ8NnpwP1Q9Y3dGTiUyYWN6NmFmQWo=",
+          Authorization: `Bearer ${process.env.HYPERPAY_AUTHORIZATION_TOKEN}`,
         },
-      }
-    );
+      });
+    } catch (err) {
+      console.error("HyperPay GET /payment failed:", err.response?.data || err.message);
+      return res.status(400).json(sendJson(false, "Invalid or expired checkoutId", { error: err.response?.data || err.message }));
+    }
 
-    const result = response.data; // ✅ only safe JSON data
+    const result = response.data;
+    console.log("HyperPay Payment Status Result:", result);
+
     let booking = null;
-
-    // If booking exists, update its status based on payment result
     if (booking_id) {
       booking = await Booking.findByPk(booking_id);
       if (!booking) {
         return res.status(404).json(sendJson(false, "Booking not found"));
       }
 
-      // ✅ Check HyperPay result.code for success
-      if (result.result && result.result.code && result.result.code.startsWith("000.")) {
+      if (result.result?.code?.startsWith("000.")) {
         await booking.update({ status: "isPaid" });
+      } else {
+        await booking.update({ status: "failed", payment_result: JSON.stringify(result) });
       }
     }
 
@@ -1801,12 +1812,14 @@ exports.getPaymentStatus = async (req, res) => {
       })
     );
   } catch (error) {
-    console.error("Payment Status Error:", error.message);
-    return res
-      .status(500)
-      .json(sendJson(false, "Failed to fetch payment status", { error: error.message }));
+    console.error("Payment Status Error:", error);
+    return res.status(500).json(
+      sendJson(false, "Failed to fetch payment status", { error: error.message })
+    );
   }
 };
+
+
 exports.TalentAvailability = async (req, res) => {
   try {
     const { bookingdates, talent_id } = req.body;
@@ -2879,7 +2892,7 @@ exports.pay = async (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Complete Payment</title>
-        <script src="https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}"></script>
+        <script src="https://eu-test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}"></script>
        <style>
             * {
               box-sizing: border-box;
