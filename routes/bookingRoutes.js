@@ -21,4 +21,9 @@ router.get("/status", authenticate,bookingController.getPaymentStatus);
 router.put('/reschedule/approve/:id', authenticate, bookingController.approveReschedule);
 router.put('/reschedule/reject/:id', authenticate, bookingController.rejectReschedule);
 router.get("/pay", bookingController.pay);
+
+router.get("/hyperpay/return", bookingController.hyperpayReturn);
+router.get("/payment-success", bookingController.paymentSuccess);
+router.get("/payment-failed", bookingController.paymentFailed);
+router.get("/payment-error", bookingController.paymentError);
 module.exports = router;

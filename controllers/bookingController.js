@@ -1663,19 +1663,20 @@ exports.createCheckout = async (req, res) => {
       currency: "SAR",
       paymentType: "DB",
       testMode: "EXTERNAL",
+      shopperResultUrl: `https://app.talinoo.com/api/booking/hyperpay/return`,
       "customParameters[3DS2_enrolled]": "true",
       merchantTransactionId,
       "customer.email": req.user.email,
       "billing.street1": clientdetails.city || "N/A",
-      "billing.city": clientdetails.city || "N/A",
-      "billing.state": clientdetails.city || "N/A",
-      "billing.country": clientdetails.country || "N/A",
-      "billing.postcode": clientdetails.country || "N/A",
+      "billing.city": clientdetails.city || "Riyadh",
+      "billing.state": clientdetails.city || "RUH",
+      "billing.country": clientdetails.country || "SA",
+      "billing.postcode": clientdetails.country || "11564",
       "customer.givenName": clientdetails.full_name,
       "customer.surname": clientdetails.full_name
     });
 
-    //console.log("HyperPay Checkout Data:", data);
+   console.log("HyperPay Checkout Data:", data);
     
 
     // HTTPS request options
@@ -1710,6 +1711,16 @@ exports.createCheckout = async (req, res) => {
       postRequest.write(data);
       postRequest.end();
     });
+
+    if (response?.result?.parameterErrors) {
+          console.log(
+            JSON.stringify(response.result.parameterErrors, null, 2)
+          );
+        } else {
+          console.log("No parameterErrors found", response);
+        }
+
+     console.log("HyperPay response Data:", response);
 
     let booking;
     if (booking_id) {
@@ -3309,5 +3320,169 @@ exports.pay = async (req, res) => {
     res.status(500).send("Unable to load payment page");
   }
 };
+
+
+exports.hyperpayReturn = async (req, res) => {
+  try {
+    const { resourcePath } = req.query;
+
+    if (!resourcePath) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment-error`
+      );
+    }
+
+    const verifyPath =
+      `${resourcePath}?entityId=${process.env.HYPERPAY_ENTITY_ID}`;
+
+    const options = {
+      port: 443,
+      host: process.env.HYPERPAY_HOST,
+      path: verifyPath,
+      method: "GET",
+      headers: {
+        Authorization:
+          `Bearer ${process.env.HYPERPAY_AUTHORIZATION_TOKEN}`
+      }
+    };
+
+    const paymentResult = await new Promise((resolve, reject) => {
+      const buf = [];
+      const reqVerify = https.request(options, (resHyperpay) => {
+        resHyperpay.on("data", chunk => buf.push(chunk));
+        resHyperpay.on("end", () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(buf).toString("utf8")));
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+      reqVerify.on("error", reject);
+      reqVerify.end();
+    });
+
+    console.log("HyperPay verification response:", paymentResult);
+
+    const resultCode = paymentResult?.result?.code;
+
+    const successCodes = [
+      "000.000.000",
+      "000.100.110",
+      "000.100.111"
+    ];
+ 
+    const booking = await Booking.findOne({
+      where: { checkout_id: paymentResult.id }
+    });
+
+    if (!booking) {
+      return res.redirect(
+        `${process.env.APP_URL}/payment-error`
+      );
+    }
+ 
+    if (successCodes.includes(resultCode)) {
+      await booking.update({
+        payment_status: "paid", 
+        result_description: JSON.stringify(paymentResult)
+      });
+
+      return res.redirect(
+        `${process.env.APP_URL}/api/booking/payment-success?booking=${booking.id}`
+      );
+    }
+ 
+    await booking.update({
+      checkout_id: null,
+      payment_status: "failed",
+      result_description: JSON.stringify(paymentResult)
+    });
+
+    return res.redirect(
+      `${process.env.APP_URL}/api/booking/payment-failed?booking=${booking.id}`
+    );
+
+  } catch (error) {
+    console.error("HyperPay return error:", error);
+    return res.redirect(
+      `${process.env.APP_URL}/api/booking/payment-error?booking=${booking.id}`
+    );
+  }
+};
+ 
+ 
+exports.paymentSuccess = async (req, res) => {
+  try {
+    const { booking } = req.query;
+    if (!booking) {
+      return res.status(400).json({ success: false, message: "Booking ID is required" });
+    }
+
+    const bookingData = await Booking.findByPk(booking);
+
+    if (!bookingData) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment successful",
+      booking: bookingData
+    });
+  } catch (error) {
+    console.error("Payment success error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+ 
+exports.paymentFailed = async (req, res) => {
+  try {
+    const { booking } = req.query;
+    if (!booking) {
+      return res.status(400).json({ success: false, message: "Booking ID is required" });
+    }
+
+    const bookingData = await Booking.findByPk(booking);
+
+    if (!bookingData) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    return res.status(200).json({
+      success: false,
+      message: "Payment failed",
+      booking: bookingData
+    });
+  } catch (error) {
+    console.error("Payment failed error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+ 
+exports.paymentError = async (req, res) => {
+  try {
+    const { booking } = req.query;
+    if (!booking) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID is required"
+      });
+    }
+
+    const bookingData = await Booking.findByPk(booking);
+
+    return res.status(400).json({
+      success: false,
+      message: "Payment error occurred. Please try again later.",
+      booking: bookingData || null
+    });
+  } catch (error) {
+    console.error("Payment error route error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
 
 
