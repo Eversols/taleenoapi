@@ -3327,10 +3327,10 @@ exports.hyperpayReturn = async (req, res) => {
   let bookingId = null; // Initialize here to use in catch safely
 
   try {
-    const { resourcePath } = req.query;
+    const { resourcePath,id } = req.query;
 
-    if (!resourcePath) {
-      return res.redirect(`${process.env.APP_URL}/payment-error`);
+    if (!id) {
+      return res.redirect(`${process.env.APP_URL}/payment-error?id=undefined`);
     }
 
     const verifyPath = `${resourcePath}?entityId=${process.env.HYPERPAY_ENTITY_ID}`;
@@ -3363,7 +3363,7 @@ exports.hyperpayReturn = async (req, res) => {
 
     console.log("HyperPay verification response:", paymentResult);
 
-    const checkoutId = paymentResult?.id;
+    const checkoutId = id;
     if (!checkoutId) {
       console.error("Missing checkout ID in HyperPay verification response:", paymentResult);
       return res.redirect(`${process.env.APP_URL}/payment-error`);
@@ -3385,19 +3385,19 @@ exports.hyperpayReturn = async (req, res) => {
         payment_status: "paid",
         result_description: JSON.stringify(paymentResult)
       });
-      return res.redirect(`${process.env.APP_URL}/api/booking/payment-success?booking=${bookingId}`);
+      return res.redirect(`${process.env.APP_URL}/booking/payment-success?booking=${bookingId}`);
     } else {
       await booking.update({
         checkout_id: null,
         payment_status: "failed",
         result_description: JSON.stringify(paymentResult)
       });
-      return res.redirect(`${process.env.APP_URL}/api/booking/payment-failed?booking=${bookingId}`);
+      return res.redirect(`${process.env.APP_URL}/booking/payment-failed?booking=${bookingId}`);
     }
 
   } catch (error) {
     console.error("HyperPay return error:", error);
-    return res.redirect(`${process.env.APP_URL}/api/booking/payment-error${bookingId ? `?booking=${bookingId}` : ""}`);
+    return res.redirect(`${process.env.APP_URL}/booking/payment-error${bookingId ? `?booking=${bookingId}` : ""}`);
   }
 };
 
