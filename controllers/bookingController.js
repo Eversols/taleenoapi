@@ -3381,6 +3381,8 @@ exports.hyperpayReturn = async (req, res) => {
         `${process.env.APP_URL}/payment-error`
       );
     }
+
+    const bookingId = booking.id;
  
     if (successCodes.includes(resultCode)) {
       await booking.update({
@@ -3389,7 +3391,7 @@ exports.hyperpayReturn = async (req, res) => {
       });
 
       return res.redirect(
-        `${process.env.APP_URL}/api/booking/payment-success?booking=${booking.id}`
+        `${process.env.APP_URL}/api/booking/payment-success?booking=${bookingId}`
       );
     }
  
@@ -3400,13 +3402,13 @@ exports.hyperpayReturn = async (req, res) => {
     });
 
     return res.redirect(
-      `${process.env.APP_URL}/api/booking/payment-failed?booking=${booking.id}`
+      `${process.env.APP_URL}/api/booking/payment-failed?booking=${bookingId}`
     );
 
   } catch (error) {
     console.error("HyperPay return error:", error);
     return res.redirect(
-      `${process.env.APP_URL}/api/booking/payment-error?booking=${booking.id}`
+      `${process.env.APP_URL}/api/booking/payment-error?booking=${bookingId}`
     );
   }
 };
