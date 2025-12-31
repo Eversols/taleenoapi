@@ -3348,33 +3348,35 @@ exports.hyperpayReturn = async (req, res) => {
 
     const verifyPath = `${resourcePath}?entityId=${process.env.HYPERPAY_ENTITY_ID}`;
 
-    const options = {
-      port: 443,
-      host: process.env.HYPERPAY_HOST,
-      path: verifyPath,
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${process.env.HYPERPAY_AUTHORIZATION_TOKEN}`
-      }
-    };
+    return 'payied';
 
-    const paymentResult = await new Promise((resolve, reject) => {
-      const buf = [];
-      const reqVerify = https.request(options, (resHyperpay) => {
-        resHyperpay.on("data", chunk => buf.push(chunk));
-        resHyperpay.on("end", () => {
-          try {
-            resolve(JSON.parse(Buffer.concat(buf).toString("utf8")));
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-      reqVerify.on("error", reject);
-      reqVerify.end();
-    });
+    // const options = {
+    //   port: 443,
+    //   host: process.env.HYPERPAY_HOST,
+    //   path: verifyPath,
+    //   method: "GET",
+    //   headers: {
+    //     Authorization: `Bearer ${process.env.HYPERPAY_AUTHORIZATION_TOKEN}`
+    //   }
+    // };
 
-    console.log("HyperPay verification response:", paymentResult);
+    // const paymentResult = await new Promise((resolve, reject) => {
+    //   const buf = [];
+    //   const reqVerify = https.request(options, (resHyperpay) => {
+    //     resHyperpay.on("data", chunk => buf.push(chunk));
+    //     resHyperpay.on("end", () => {
+    //       try {
+    //         resolve(JSON.parse(Buffer.concat(buf).toString("utf8")));
+    //       } catch (err) {
+    //         reject(err);
+    //       }
+    //     });
+    //   });
+    //   reqVerify.on("error", reject);
+    //   reqVerify.end();
+    // });
+
+    // console.log("HyperPay verification response:", paymentResult);
 
     const checkoutId = id;
     if (!checkoutId) {
