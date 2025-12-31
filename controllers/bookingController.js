@@ -3298,7 +3298,7 @@ exports.hyperpayReturn = async (req, res) => {
         result_description: JSON.stringify(paymentResult),
         result_code: paymentResult.id || paymentResult.ndc || checkoutId
       });
-      return res.redirect(`${process.env.APP_URL}/booking/payment-success?booking=${bookingId}`);
+     // return res.redirect(`${process.env.APP_URL}/booking/payment-success?booking=${bookingId}`);
     } 
     else if (resultCode.startsWith("000.400.") || resultCode.startsWith("000.200.")) {
       // Pending payment
@@ -3306,7 +3306,7 @@ exports.hyperpayReturn = async (req, res) => {
         payment_status: "pending",
         result_description: JSON.stringify(paymentResult)
       });
-      return res.redirect(`${process.env.APP_URL}/booking/payment-pending?booking=${bookingId}`);
+      //return res.redirect(`${process.env.APP_URL}/booking/payment-pending?booking=${bookingId}`);
     }
     else if (resultCode.startsWith("000.100.")) {
       // Manual review required
@@ -3314,7 +3314,7 @@ exports.hyperpayReturn = async (req, res) => {
         payment_status: "manual_review",
         result_description: JSON.stringify(paymentResult)
       });
-      return res.redirect(`${process.env.APP_URL}/booking/payment-pending?booking=${bookingId}`);
+     // return res.redirect(`${process.env.APP_URL}/booking/payment-pending?booking=${bookingId}`);
     }
     else {
       // Failed payment
@@ -3322,7 +3322,7 @@ exports.hyperpayReturn = async (req, res) => {
         payment_status: "failed", 
         result_description: JSON.stringify(paymentResult)
       });
-      return res.redirect(`${process.env.APP_URL}/booking/payment-failed?booking=${bookingId}`);
+     // return res.redirect(`${process.env.APP_URL}/booking/payment-failed?booking=${bookingId}`);
     }
 
   } catch (error) {
@@ -3342,7 +3342,7 @@ exports.hyperpayReturn = async (req, res) => {
       }
     }
     
-    return res.redirect(`${process.env.APP_URL}/booking/payment-error${bookingId ? `?booking=${bookingId}` : ""}`);
+   // return res.redirect(`${process.env.APP_URL}/booking/payment-error${bookingId ? `?booking=${bookingId}` : ""}`);
   }
 };
  
