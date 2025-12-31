@@ -82,6 +82,21 @@ const executeQuery = async (sql, params = []) => {
     sendException('Database operation failed', 500, error);
   }
 };
+function determinePaymentStatus(resultCode) {
+  if (!resultCode) return "unknown";
+  
+  if (resultCode.startsWith("000.000.")) {
+    return "success";
+  } else if (resultCode.startsWith("000.400.")) {
+    return "pending";
+  } else if (resultCode.startsWith("000.200.")) {
+    return "manual_review";
+  } else if (resultCode.startsWith("800.") || resultCode.startsWith("900.")) {
+    return "failed";
+  } else {
+    return "unknown";
+  }
+}
 
 module.exports = {
   sendJson,
@@ -93,4 +108,5 @@ module.exports = {
   isDatePassed,
   recordExists,
   executeQuery,
+  determinePaymentStatus,
 };
