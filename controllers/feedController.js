@@ -939,10 +939,6 @@ exports.testingFeed = async (req, res) => {
         attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
       });
 
-      console.log('Availabilities for user', user.id, availabilities);
-
-      if (!availabilities.length) continue;
-
       if (available_date || available_time || price_range) {
         if (!isTalentAvailable(availabilities, available_date, available_time, price_range)) {
           continue;
@@ -955,13 +951,6 @@ exports.testingFeed = async (req, res) => {
         if (!talentSkills.length) continue;
       }
 
-      const formattedAvailability = availabilities.map(a => ({
-        date: a.date,
-        slot: `${a.start_time} - ${a.end_time}`,
-        price: a.price,
-        discount: a.discount
-      }));
-
       const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
         id: s.id,
         name: skillsMap[s.id] || null,
@@ -971,8 +960,12 @@ exports.testingFeed = async (req, res) => {
       const jobs = 0;
       const ratinginnumber = Math.min(5, (jobs / 20) * 5);
 
+      /* 🔴 ONLY CHANGE: REMOVE User FROM RESPONSE */
+      const mediaJson = media.toJSON();
+      delete mediaJson.User;
+
       feed.push({
-        ...media.toJSON(),
+        ...mediaJson,
         TalentRate: talentSkills[0]?.rate ? Number(talentSkills[0].rate) : null,
         likes_count: 0,
         is_liked: false,
@@ -982,7 +975,7 @@ exports.testingFeed = async (req, res) => {
           talent_id: user.talent.id,
           username: user.username,
           full_name: user.talent.full_name,
-          talent_type: user.talent.main_talent,
+          talent_type: user.talent.main_talent || null,
           location: `${user.talent.city
             ? (await City.findByPk(user.talent.city))?.name || null
             : null}, ${user.talent.country || ''}`,
@@ -1000,7 +993,7 @@ exports.testingFeed = async (req, res) => {
           reaction: null,
           is_liked: false,
           is_unliked: false,
-          views: 0,
+          views: user.views || 0,
           talentSkills: talentSkillsWithNames,
           is_wishlisted: false,
           wishlist_count: 0,
@@ -1028,20 +1021,11 @@ exports.testingFeed = async (req, res) => {
         attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
       });
 
-      if (!availabilities.length) continue;
-
       if (available_date || available_time || price_range) {
         if (!isTalentAvailable(availabilities, available_date, available_time, price_range)) {
           continue;
         }
       }
-
-      const formattedAvailability = availabilities.map(a => ({
-        date: a.date,
-        slot: `${a.start_time} - ${a.end_time}`,
-        price: a.price,
-        discount: a.discount
-      }));
 
       const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
         id: s.id,
@@ -1056,8 +1040,12 @@ exports.testingFeed = async (req, res) => {
         id: null,
         userId: user.id,
         title: null,
+        description: null,
         fileUrl: null,
-        fileType: null,
+        type: null,
+        visibility: null,
+        likes: 0,
+        shares: 0,
         skill_id: null,
         TalentRate: null,
         likes_count: 0,
@@ -1068,7 +1056,7 @@ exports.testingFeed = async (req, res) => {
           talent_id: user.talent.id,
           username: user.username,
           full_name: user.talent.full_name,
-          talent_type: user.talent.main_talent,
+          talent_type: user.talent.main_talent || null,
           location: `${user.talent.city
             ? (await City.findByPk(user.talent.city))?.name || null
             : null}, ${user.talent.country || ''}`,
@@ -1086,7 +1074,7 @@ exports.testingFeed = async (req, res) => {
           reaction: null,
           is_liked: false,
           is_unliked: false,
-          views: 0,
+          views: user.views || 0,
           talentSkills: talentSkillsWithNames,
           is_wishlisted: false,
           wishlist_count: 0,
@@ -1106,3 +1094,4 @@ exports.testingFeed = async (req, res) => {
     );
   }
 };
+
