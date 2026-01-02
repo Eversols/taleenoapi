@@ -848,16 +848,6 @@ exports.testingFeed = async (req, res) => {
 
     const searchText = username?.trim();
 
-    let searchWhere = {};
-    if (searchText) {
-      searchWhere = {
-        [Op.or]: [
-          { '$User.username$': { [Op.like]: `%${searchText}%` } },
-          { '$User.talent.full_name$': { [Op.like]: `%${searchText}%` } }
-        ]
-      };
-    }
-
     const talentWhere = {};
     if (talent_type) talentWhere.main_talent = talent_type;
 
@@ -867,7 +857,7 @@ exports.testingFeed = async (req, res) => {
       if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
     }
 
-    // Blocked users
+    /* ---------------- BLOCKED USERS ---------------- */
     const blockedUsers = await Block.findAll({
       where: {
         [Op.or]: [
@@ -881,18 +871,17 @@ exports.testingFeed = async (req, res) => {
       b.blocker_id === req.user.id ? b.blocked_id : b.blocker_id
     );
 
-    // Skills map
+    /* ---------------- SKILLS MAP ---------------- */
     const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
     const skillsMap = allSkills.reduce((acc, s) => {
       acc[s.id] = s.name;
       return acc;
     }, {});
 
-    // Fetch media
+    /* ---------------- MEDIA ---------------- */
     const mediaItems = await Media.findAll({
       where: {
-        userId: { [Op.notIn]: blockedIds },
-        ...(searchText ? searchWhere : {})
+        userId: { [Op.notIn]: blockedIds }
       },
       include: [
         {
@@ -911,7 +900,7 @@ exports.testingFeed = async (req, res) => {
       order: [['id', 'DESC']]
     });
 
-    // Fetch users without media
+    /* ---------------- USERS WITHOUT MEDIA ---------------- */
     const usersWithoutMedia = await User.findAll({
       where: {
         role: 'talent',
@@ -929,10 +918,21 @@ exports.testingFeed = async (req, res) => {
 
     const feed = [];
 
-    // ---------- MEDIA USERS ----------
+    /* ============================================================
+       MEDIA USERS
+    ============================================================ */
     for (const media of mediaItems) {
       const user = media.User;
       if (!user || !user.talent) continue;
+
+      if (searchText) {
+        const match =
+          user.username?.toLowerCase().includes(searchText.toLowerCase()) ||
+          user.talent.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+          media.title?.toLowerCase().includes(searchText.toLowerCase());
+
+        if (!match) continue;
+      }
 
       const availabilities = await TalentAvailability.findAll({
         where: { talent_id: user.talent.id },
@@ -960,8 +960,20 @@ exports.testingFeed = async (req, res) => {
         discount: null
       }));
 
+      const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,
+        rate: s.rate ? s.rate.toString() : '0'
+      }));
+
+      const jobs = 0;
+      const ratinginnumber = Math.min(5, (jobs / 20) * 5);
+
       feed.push({
         ...media.toJSON(),
+        TalentRate: talentSkills[0]?.rate ? Number(talentSkills[0].rate) : null,
+        likes_count: 0,
+        is_liked: false,
         talent: {
           id: user.id,
           user_id: user.id,
@@ -969,20 +981,45 @@ exports.testingFeed = async (req, res) => {
           username: user.username,
           full_name: user.talent.full_name,
           talent_type: user.talent.main_talent,
+          location: `${user.talent.city
+            ? (await City.findByPk(user.talent.city))?.name || null
+            : null}, ${user.talent.country || ''}`,
           city: user.talent.city
-            ? (await City.findByPk(user.talent.city))?.name
+            ? (await City.findByPk(user.talent.city))?.name || null
             : null,
           country: user.talent.country,
           profile_photo: user.talent.profile_photo,
-          talentSkills,
-          availability: formattedAvailability
+          video_url: user.talent.video_url || null,
+          jobs,
+          rating: 0,
+          ratinginnumber,
+          likes_count: 0,
+          unlikes_count: 0,
+          reaction: null,
+          is_liked: false,
+          is_unliked: false,
+          views: 0,
+          talentSkills: talentSkillsWithNames,
+          is_wishlisted: false,
+          wishlist_count: 0,
+          availability: user.availability
         }
       });
     }
 
-    // ---------- USERS WITHOUT MEDIA ----------
+    /* ============================================================
+       USERS WITHOUT MEDIA
+    ============================================================ */
     for (const user of usersWithoutMedia) {
       if (!user.talent) continue;
+
+      if (searchText) {
+        const match =
+          user.username?.toLowerCase().includes(searchText.toLowerCase()) ||
+          user.talent.full_name?.toLowerCase().includes(searchText.toLowerCase());
+
+        if (!match) continue;
+      }
 
       const availabilities = await TalentAvailability.findAll({
         where: { talent_id: user.talent.id },
@@ -1004,12 +1041,25 @@ exports.testingFeed = async (req, res) => {
         discount: null
       }));
 
+      const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
+        id: s.id,
+        name: skillsMap[s.id] || null,
+        rate: s.rate ? s.rate.toString() : '0'
+      }));
+
+      const jobs = 0;
+      const ratinginnumber = Math.min(5, (jobs / 20) * 5);
+
       feed.push({
         id: null,
         userId: user.id,
         title: null,
         fileUrl: null,
         fileType: null,
+        skill_id: null,
+        TalentRate: null,
+        likes_count: 0,
+        is_liked: false,
         talent: {
           id: user.id,
           user_id: user.id,
@@ -1017,12 +1067,28 @@ exports.testingFeed = async (req, res) => {
           username: user.username,
           full_name: user.talent.full_name,
           talent_type: user.talent.main_talent,
+          location: `${user.talent.city
+            ? (await City.findByPk(user.talent.city))?.name || null
+            : null}, ${user.talent.country || ''}`,
           city: user.talent.city
-            ? (await City.findByPk(user.talent.city))?.name
+            ? (await City.findByPk(user.talent.city))?.name || null
             : null,
           country: user.talent.country,
           profile_photo: user.talent.profile_photo,
-          availability: formattedAvailability
+          video_url: user.talent.video_url || null,
+          jobs,
+          rating: 0,
+          ratinginnumber,
+          likes_count: 0,
+          unlikes_count: 0,
+          reaction: null,
+          is_liked: false,
+          is_unliked: false,
+          views: 0,
+          talentSkills: talentSkillsWithNames,
+          is_wishlisted: false,
+          wishlist_count: 0,
+          availability: user.availability
         }
       });
     }

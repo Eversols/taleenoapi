@@ -1881,8 +1881,112 @@ exports.save_talent_availability = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const userId = req.user.id; // logged-in user
-    const availability = JSON.parse(req.body.availability); 
+    const userId = req.user.id;
+    const { availability, experience_level, skills } = req.body;
+
+    /* ===================== REQUIRED VALIDATION ===================== */
+
+    if (!availability) {
+      await transaction.rollback();
+      return res.status(400).json(sendJson(false, 'Availability is required'));
+    }
+
+    if (!experience_level) {
+      await transaction.rollback();
+      return res.status(400).json(sendJson(false, 'Experience level is required'));
+    }
+
+    if (!skills) {
+      await transaction.rollback();
+      return res.status(400).json(sendJson(false, 'Skills are required'));
+    }
+
+    /* ===================== PARSE AVAILABILITY ===================== */
+
+    let parsedAvailability;
+    try {
+      parsedAvailability = typeof availability === 'string'
+        ? JSON.parse(availability)
+        : availability;
+    } catch (err) {
+      await transaction.rollback();
+      return res.status(400).json(sendJson(false, 'Invalid availability format'));
+    }
+
+    if (!Array.isArray(parsedAvailability) || parsedAvailability.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json(
+        sendJson(false, 'Availability must be a non-empty array')
+      );
+    }
+
+    /* ===================== VALIDATE AVAILABILITY ITEMS ===================== */
+
+    for (let i = 0; i < parsedAvailability.length; i++) {
+      const item = parsedAvailability[i];
+
+      if (!item.date) {
+        await transaction.rollback();
+        return res.status(400).json(
+          sendJson(false, `availability[${i}].date is required`)
+        );
+      }
+
+      if (!item.slot) {
+        await transaction.rollback();
+        return res.status(400).json(
+          sendJson(false, `availability[${i}].slot is required`)
+        );
+      }
+
+      if (item.price === undefined || item.price === null) {
+        await transaction.rollback();
+        return res.status(400).json(
+          sendJson(false, `availability[${i}].price is required`)
+        );
+      }
+
+      if (item.discount === undefined || item.discount === null) {
+        await transaction.rollback();
+        return res.status(400).json(
+          sendJson(false, `availability[${i}].discount is required`)
+        );
+      }
+    }
+
+    /* ===================== PARSE & NORMALIZE SKILLS ===================== */
+
+    let parsedSkills;
+    try {
+      parsedSkills = typeof skills === 'string'
+        ? JSON.parse(skills)
+        : skills;
+    } catch (err) {
+      await transaction.rollback();
+      return res.status(400).json(sendJson(false, 'Invalid skills format'));
+    }
+
+    if (!Array.isArray(parsedSkills) || parsedSkills.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json(
+        sendJson(false, 'Skills must be a non-empty array')
+      );
+    }
+
+    parsedSkills = parsedSkills.map((s, index) => {
+      if (!s.id) {
+        throw new Error(`skills[${index}].id is required`);
+      }
+
+      return {
+        id: Number(s.id),
+        rate: s.rate !== null && s.rate !== undefined
+          ? Number(s.rate)
+          : null
+      };
+    });
+
+    /* ===================== FETCH TALENT ===================== */
 
     const talent = await Talent.findOne({
       where: { user_id: userId },
@@ -1891,47 +1995,54 @@ exports.save_talent_availability = async (req, res) => {
 
     if (!talent) {
       await transaction.rollback();
-      return res.status(404).json(sendJson(false, "Talent not found"));
+      return res.status(404).json(sendJson(false, 'Talent not found'));
     }
 
-    // Remove old availability (UPDATE behavior)
+    /* ===================== SAVE SKILLS (REAL JSON) ===================== */
+
+    await talent.update(
+      {
+        experience_level,
+        skills: parsedSkills
+      },
+      { transaction }
+    );
+
+    /* ===================== RESET AVAILABILITY ===================== */
+
     await TalentAvailability.destroy({
       where: { talent_id: talent.id },
       transaction
     });
 
-    // Insert new availability (ADD behavior)
-    const rows = availability.map(item => {
-    let [start_time, end_time] = item.slot.split(' - ').map(t => t.trim());
+    const rows = parsedAvailability.map(item => {
+      let [start_time, end_time] = item.slot.split(' - ').map(t => t.trim());
 
-    // Normalize to HH:mm:ss
-    start_time = normalizeTime(start_time);
-    end_time = normalizeTime(end_time);
+      start_time = normalizeTime(start_time);
+      end_time = normalizeTime(end_time);
 
-    return {
-      talent_id: talent.id,
-      date: item.date,
-      start_time,
-      end_time,
-      price: item.price || null,
-      discount: item.discount || null
-    };
-  });
-
+      return {
+        talent_id: talent.id,
+        date: item.date,
+        start_time,
+        end_time,
+        price: Number(item.price),
+        discount: Number(item.discount)
+      };
+    });
 
     await TalentAvailability.bulkCreate(rows, { transaction });
 
     await transaction.commit();
 
-    return res.json(sendJson(true, "Talent availability saved successfully"));
+    return res.json(
+      sendJson(true, 'Talent availability saved successfully')
+    );
   } catch (error) {
     await transaction.rollback();
-    return res
-      .status(500)
-      .json(
-        sendJson(false, "Failed to update user status", { error: error.message })
-      );
-
+    return res.status(500).json(
+      sendJson(false, 'Server error', { error: error.message })
+    );
   }
 };
 
