@@ -1,4 +1,4 @@
-const { User, Skill, Media, Block, City, sequelize } = require('../models');
+const { User, Skill, Media, Block, City, TalentAvailability,sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const { Op } = require('sequelize');
 
@@ -552,13 +552,23 @@ exports.AdminFeed = async (req, res) => {
 
 // .
 
-exports.OldgetFeed = async (req, res) => {
+exports.backupFeed = async (req, res) => {
   try {
     const BASE_URL = process.env.APP_URL;
     const { username, talent_type, location, price_range, skill_id, available_date, available_time } = req.query;
 
     const userWhere = { role: 'talent', is_blocked: 0 };
-    if (username) userWhere.username = { [Op.like]: `%${username}%` };
+    const searchText = username?.trim();
+    // Build searchWhere properly
+    let searchWhere = {};
+    if (searchText) {
+      searchWhere = {
+        [Op.or]: [
+          { '$User.username$': { [Op.like]: `%${searchText}%` } },
+          { '$User.talent.full_name$': { [Op.like]: `%${searchText}%` } }
+        ]
+      };
+    }
 
     const talentWhere = {};
     if (talent_type) talentWhere.main_talent = talent_type;
@@ -592,36 +602,73 @@ exports.OldgetFeed = async (req, res) => {
     // fetch all media first (skip blocked users)
     const mediaItems = await Media.findAll({
       where: {
-        userId: { [Op.notIn]: blockedIds }
+        userId: { [Op.notIn]: blockedIds },
+        ...(searchText ? searchWhere : {})
       },
+      include: [
+        {
+          model: User,
+          as: 'User',
+          where: {
+            role: 'talent',
+            is_blocked: 0,
+            // Remove username from userWhere since we're handling it in searchWhere
+          },
+          required: true,
+          include: [
+            {
+              association: 'talent',
+              where: talentWhere,
+              required: false // Set to false to include users even without talent record
+            }
+          ]
+        }
+      ],
       order: [['id', 'DESC']]
     });
 
     const feed = [];
 
     for (const media of mediaItems) {
-      const user = await User.findOne({
-      where: {
-        id: media.userId,
-        ...userWhere
-      },
-  include: [
-    {
-      association: 'talent',
-      where: talentWhere,
-      attributes: [
-        "id", "full_name", "city", "country", "profile_photo", "video_url",
-        "main_talent", "skills", "availability",
-        [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
-        [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
-        [sequelize.literal(`(SELECT type FROM likes l WHERE l.talent_id = talent.id ${req.user ? `AND l.user_id = ${req.user.id}` : ``} LIMIT 1)`), 'reaction'],
-        [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
-        [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id ${req.user ? `AND w.user_id = ${req.user.id}` : ``})`), 'is_wishlisted'],
-        [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id)`), 'wishlist_count'],
-        ]
+      // If we have a search text, check if it matches in any field
+      if (searchText) {
+        const user = media.User;
+        const usernameMatch = user.username && 
+          user.username.toLowerCase().includes(searchText.toLowerCase());
+        const fullNameMatch = user.talent && user.talent.full_name && 
+          user.talent.full_name.toLowerCase().includes(searchText.toLowerCase());
+        const titleMatch = media.title && 
+          media.title.toLowerCase().includes(searchText.toLowerCase());
+        
+        // If no match, skip this media item
+        if (!usernameMatch && !fullNameMatch && !titleMatch) {
+          continue;
+        }
       }
-    ]
-  });
+      const user = await User.findOne({
+        where: {
+          id: media.userId,
+          role: 'talent',
+          is_blocked: 0
+        },
+        include: [
+          {
+            association: 'talent',
+            where: talentWhere,
+            required: false,
+            attributes: [
+              "id", "full_name", "city", "country", "profile_photo", "video_url",
+              "main_talent", "skills", "availability",
+              [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
+              [sequelize.literal(`(SELECT type FROM likes l WHERE l.talent_id = talent.id ${req.user ? `AND l.user_id = ${req.user.id}` : ``} LIMIT 1)`), 'reaction'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id ${req.user ? `AND w.user_id = ${req.user.id}` : ``})`), 'is_wishlisted'],
+              [sequelize.literal(`(SELECT COUNT(*) FROM Wishlists w WHERE w.talent_id = talent.id)`), 'wishlist_count'],
+            ]
+          }
+        ]
+      });
 
 
       if (!user || !user.talent) continue;
@@ -668,7 +715,7 @@ exports.OldgetFeed = async (req, res) => {
         talentSkills = talentSkills.filter(s => s.id == skill_id);
         if (!talentSkills.length) continue;
       }
-
+      
       if (price_range) {
         const [minPrice, maxPrice] = price_range.split('-').map(Number);
         talentSkills = talentSkills.filter(s => Number(s.rate) >= minPrice && Number(s.rate) <= maxPrice);
@@ -684,7 +731,7 @@ exports.OldgetFeed = async (req, res) => {
       const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
         id: s.id,
         name: skillsMap[s.id] || null,
-        rate: s.rate
+        rate: s.rate.toString()
       }));
       const likesCount = await sequelize.models.MediaLike.count({
         where: { media_id: media.id }
@@ -700,9 +747,13 @@ exports.OldgetFeed = async (req, res) => {
       const jobs = user.talent?.getDataValue('total_bookings') || 0;
       const MAX_JOBS = 20;
       const ratinginnumber = Math.min(5, (jobs / MAX_JOBS) * 5);
-
+      // Create a clean media object without the nested User
+      const mediaData = media.toJSON();
+      // Remove the nested User object from the response
+      delete mediaData.User;
+      
       feed.push({
-        ...media.toJSON(),
+        ...mediaData,
         TalentRate: skill?.rate ? Number(skill.rate) : null,
         likes_count: likesCount,
         is_liked: isLiked,
@@ -742,6 +793,244 @@ exports.OldgetFeed = async (req, res) => {
     return res.status(200).json(
       sendJson(true, 'Talent feed retrieved successfully', { feed })
     );
+  } catch (error) {
+    console.error('Feed Error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to retrieve talent feed', { error: error.message })
+    );
+  }
+};
+const normalizeSearchTime = (time) => {
+  if (!time) return null;
+  if (time.length === 5) return `${time}:00`;
+  return time;
+};
+
+const isTalentAvailable = (availabilities, available_date, available_time, price_range) => {
+  const searchTime = available_time
+    ? normalizeSearchTime(available_time.split('-')[0].trim())
+    : null;
+
+  for (const a of availabilities) {
+    const matchDate = available_date ? a.date === available_date : true;
+
+    const matchTime = searchTime
+      ? searchTime >= a.start_time && searchTime <= a.end_time
+      : true;
+
+    const matchPrice = price_range
+      ? (() => {
+          const [min, max] = price_range.split('-').map(Number);
+          const price = Number(a.price || 0);
+          return price >= min && price <= max;
+        })()
+      : true;
+
+    if (matchDate && matchTime && matchPrice) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+exports.testingFeed = async (req, res) => {
+  try {
+    const {
+      username,
+      talent_type,
+      location,
+      price_range,
+      skill_id,
+      available_date,
+      available_time
+    } = req.query;
+
+    const searchText = username?.trim();
+
+    let searchWhere = {};
+    if (searchText) {
+      searchWhere = {
+        [Op.or]: [
+          { '$User.username$': { [Op.like]: `%${searchText}%` } },
+          { '$User.talent.full_name$': { [Op.like]: `%${searchText}%` } }
+        ]
+      };
+    }
+
+    const talentWhere = {};
+    if (talent_type) talentWhere.main_talent = talent_type;
+
+    if (location) {
+      const [cityPart, countryPart] = location.split(',').map(l => l.trim());
+      if (cityPart) talentWhere.city = { [Op.like]: `%${cityPart}%` };
+      if (countryPart) talentWhere.country = { [Op.like]: `%${countryPart}%` };
+    }
+
+    // Blocked users
+    const blockedUsers = await Block.findAll({
+      where: {
+        [Op.or]: [
+          { blocker_id: req.user.id },
+          { blocked_id: req.user.id }
+        ]
+      }
+    });
+
+    const blockedIds = blockedUsers.map(b =>
+      b.blocker_id === req.user.id ? b.blocked_id : b.blocker_id
+    );
+
+    // Skills map
+    const allSkills = await Skill.findAll({ attributes: ['id', 'name'] });
+    const skillsMap = allSkills.reduce((acc, s) => {
+      acc[s.id] = s.name;
+      return acc;
+    }, {});
+
+    // Fetch media
+    const mediaItems = await Media.findAll({
+      where: {
+        userId: { [Op.notIn]: blockedIds },
+        ...(searchText ? searchWhere : {})
+      },
+      include: [
+        {
+          model: User,
+          as: 'User',
+          where: { role: 'talent', is_blocked: 0 },
+          include: [
+            {
+              association: 'talent',
+              where: talentWhere,
+              required: false
+            }
+          ]
+        }
+      ],
+      order: [['id', 'DESC']]
+    });
+
+    // Fetch users without media
+    const usersWithoutMedia = await User.findAll({
+      where: {
+        role: 'talent',
+        is_blocked: 0,
+        id: { [Op.notIn]: blockedIds }
+      },
+      include: [
+        {
+          association: 'talent',
+          where: talentWhere,
+          required: false
+        }
+      ]
+    });
+
+    const feed = [];
+
+    // ---------- MEDIA USERS ----------
+    for (const media of mediaItems) {
+      const user = media.User;
+      if (!user || !user.talent) continue;
+
+      const availabilities = await TalentAvailability.findAll({
+        where: { talent_id: user.talent.id },
+        attributes: ['date', 'start_time', 'end_time', 'price']
+      });
+
+      if (!availabilities.length) continue;
+
+      if (available_date || available_time || price_range) {
+        if (!isTalentAvailable(availabilities, available_date, available_time, price_range)) {
+          continue;
+        }
+      }
+
+      let talentSkills = user.talent.skills || [];
+      if (skill_id) {
+        talentSkills = talentSkills.filter(s => s.id == skill_id);
+        if (!talentSkills.length) continue;
+      }
+
+      const formattedAvailability = availabilities.map(a => ({
+        date: a.date,
+        slot: `${a.start_time} - ${a.end_time}`,
+        price: a.price,
+        discount: null
+      }));
+
+      feed.push({
+        ...media.toJSON(),
+        talent: {
+          id: user.id,
+          user_id: user.id,
+          talent_id: user.talent.id,
+          username: user.username,
+          full_name: user.talent.full_name,
+          talent_type: user.talent.main_talent,
+          city: user.talent.city
+            ? (await City.findByPk(user.talent.city))?.name
+            : null,
+          country: user.talent.country,
+          profile_photo: user.talent.profile_photo,
+          talentSkills,
+          availability: formattedAvailability
+        }
+      });
+    }
+
+    // ---------- USERS WITHOUT MEDIA ----------
+    for (const user of usersWithoutMedia) {
+      if (!user.talent) continue;
+
+      const availabilities = await TalentAvailability.findAll({
+        where: { talent_id: user.talent.id },
+        attributes: ['date', 'start_time', 'end_time', 'price']
+      });
+
+      if (!availabilities.length) continue;
+
+      if (available_date || available_time || price_range) {
+        if (!isTalentAvailable(availabilities, available_date, available_time, price_range)) {
+          continue;
+        }
+      }
+
+      const formattedAvailability = availabilities.map(a => ({
+        date: a.date,
+        slot: `${a.start_time} - ${a.end_time}`,
+        price: a.price,
+        discount: null
+      }));
+
+      feed.push({
+        id: null,
+        userId: user.id,
+        title: null,
+        fileUrl: null,
+        fileType: null,
+        talent: {
+          id: user.id,
+          user_id: user.id,
+          talent_id: user.talent.id,
+          username: user.username,
+          full_name: user.talent.full_name,
+          talent_type: user.talent.main_talent,
+          city: user.talent.city
+            ? (await City.findByPk(user.talent.city))?.name
+            : null,
+          country: user.talent.country,
+          profile_photo: user.talent.profile_photo,
+          availability: formattedAvailability
+        }
+      });
+    }
+
+    return res.status(200).json(
+      sendJson(true, 'Talent feed retrieved successfully', { feed })
+    );
+
   } catch (error) {
     console.error('Feed Error:', error);
     return res.status(500).json(

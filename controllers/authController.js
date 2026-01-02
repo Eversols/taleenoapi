@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
-const { User, Talent, Client, Follow , Skill,Block,Media,Booking,Review,Like,BookingSlot,Country,sequelize} = require('../models');
+const { User, Talent, Client,TalentAvailability, Follow , Skill,Block,Media,Booking,Review,Like,BookingSlot,Country,sequelize} = require('../models');
 const { generateOTP, sendJson } = require('../utils/helpers');
 
 const { Taqnyat } = require("../services/Taqnyat");
@@ -1872,6 +1872,66 @@ exports.getBothProfiles = async (req, res) => {
       message: 'Server error while fetching profiles',
       error: error.message
     });
+  }
+};
+const normalizeTime = (time) => {
+  return time.length === 5 ? `${time}:00` : time;
+};
+exports.save_talent_availability = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const userId = req.user.id; // logged-in user
+    const availability = JSON.parse(req.body.availability); 
+
+    const talent = await Talent.findOne({
+      where: { user_id: userId },
+      transaction
+    });
+
+    if (!talent) {
+      await transaction.rollback();
+      return res.status(404).json(sendJson(false, "Talent not found"));
+    }
+
+    // Remove old availability (UPDATE behavior)
+    await TalentAvailability.destroy({
+      where: { talent_id: talent.id },
+      transaction
+    });
+
+    // Insert new availability (ADD behavior)
+    const rows = availability.map(item => {
+    let [start_time, end_time] = item.slot.split(' - ').map(t => t.trim());
+
+    // Normalize to HH:mm:ss
+    start_time = normalizeTime(start_time);
+    end_time = normalizeTime(end_time);
+
+    return {
+      talent_id: talent.id,
+      date: item.date,
+      start_time,
+      end_time,
+      price: item.price || null,
+      discount: item.discount || null
+    };
+  });
+
+
+    await TalentAvailability.bulkCreate(rows, { transaction });
+
+    await transaction.commit();
+
+    return res.json(sendJson(true, "Talent availability saved successfully"));
+  } catch (error) {
+    await transaction.rollback();
+    return res
+      .status(500)
+      .json(
+        sendJson(false, "Failed to update user status", { error: error.message })
+      );
+
   }
 };
 

@@ -42,6 +42,7 @@ router.post('/uploadProfileImage', authMiddleware, upload.single('profile_photo'
 router.delete("/delete/skills/:id", authMiddleware, authController.deleteSkill);
 router.delete("/delete/interests/:id", authMiddleware, authController.deleteInterest);
 router.post("/switchAccount", authMiddleware, authController.switchAccount);
+router.post('/save_talent_availability', authMiddleware, authController.save_talent_availability);
 router.post("/getBothProfiles", authController.getBothProfiles);
 
 module.exports = router;
