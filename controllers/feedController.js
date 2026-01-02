@@ -936,8 +936,10 @@ exports.testingFeed = async (req, res) => {
 
       const availabilities = await TalentAvailability.findAll({
         where: { talent_id: user.talent.id },
-        attributes: ['date', 'start_time', 'end_time', 'price']
+        attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
       });
+
+      console.log('Availabilities for user', user.id, availabilities);
 
       if (!availabilities.length) continue;
 
@@ -957,7 +959,7 @@ exports.testingFeed = async (req, res) => {
         date: a.date,
         slot: `${a.start_time} - ${a.end_time}`,
         price: a.price,
-        discount: null
+        discount: a.discount
       }));
 
       feed.push({
@@ -986,7 +988,7 @@ exports.testingFeed = async (req, res) => {
 
       const availabilities = await TalentAvailability.findAll({
         where: { talent_id: user.talent.id },
-        attributes: ['date', 'start_time', 'end_time', 'price']
+        attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
       });
 
       if (!availabilities.length) continue;
@@ -1001,7 +1003,7 @@ exports.testingFeed = async (req, res) => {
         date: a.date,
         slot: `${a.start_time} - ${a.end_time}`,
         price: a.price,
-        discount: null
+        discount: a.discount
       }));
 
       feed.push({
