@@ -928,8 +928,7 @@ exports.testingFeed = async (req, res) => {
       if (searchText) {
         const match =
           user.username?.toLowerCase().includes(searchText.toLowerCase()) ||
-          user.talent.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
-          media.title?.toLowerCase().includes(searchText.toLowerCase());
+          user.talent.full_name?.toLowerCase().includes(searchText.toLowerCase())  
 
         if (!match) continue;
       }
