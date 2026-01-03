@@ -946,8 +946,17 @@ exports.testingFeed = async (req, res) => {
       }
 
       let talentSkills = user.talent.skills || [];
+      if (typeof talentSkills === 'string') {
+        try {
+          talentSkills = JSON.parse(talentSkills);
+        } catch {
+          talentSkills = [];
+        }
+      }
+
       if (skill_id) {
-        talentSkills = talentSkills.filter(s => s.id == skill_id);
+        const skillIdNum = Number(skill_id);
+        talentSkills = talentSkills.filter(s => Number(s.id) === skillIdNum);
         if (!talentSkills.length) continue;
       }
 
@@ -1027,7 +1036,21 @@ exports.testingFeed = async (req, res) => {
         }
       }
 
-      const talentSkillsWithNames = (user.talent.skills || []).map(s => ({
+      let talentSkills = user.talent.skills || [];
+      if (typeof talentSkills === 'string') {
+        try {
+          talentSkills = JSON.parse(talentSkills);
+        } catch {
+          talentSkills = [];
+        }
+      }
+      if (skill_id) {
+        const skillIdNum = Number(skill_id);
+        talentSkills = talentSkills.filter(s => Number(s.id) === skillIdNum);
+        if (!talentSkills.length) continue;
+      }
+
+      const talentSkillsWithNames = talentSkills.map(s => ({
         id: s.id,
         name: skillsMap[s.id] || null,
         rate: s.rate ? s.rate.toString() : '0'
@@ -1047,7 +1070,7 @@ exports.testingFeed = async (req, res) => {
         likes: 0,
         shares: 0,
         skill_id: null,
-        TalentRate: null,
+        TalentRate: talentSkills[0]?.rate ? Number(talentSkills[0].rate) : null,
         likes_count: 0,
         is_liked: false,
         talent: {
