@@ -655,6 +655,7 @@ exports.updateProfile = async (req, res) => {
         latitude,      // <-- ADD
         longitude      // <-- ADD
       });
+      await user.update({ on_board: 1 });
     } else {
       await user.update({ on_board: 1 });
       await user.client.update({
