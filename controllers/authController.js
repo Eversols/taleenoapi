@@ -254,7 +254,7 @@ exports.verifyOTP = async (req, res) => {
       is_verified: user.is_verified,
       on_board: user.on_board,
       notification_alert: user.notification_alert,
-      availability: formattedAvailability,
+      availability: user.availability,
       followers: followersCount,
       followings: followingsCount,
       userInfo: user.role === "talent"
@@ -262,7 +262,10 @@ exports.verifyOTP = async (req, res) => {
             ...talentData,
             profile_photo: talentData?.profile_photo
               ? `${talentData.profile_photo}`
-              : null
+              : null,
+          availability: formattedAvailability.length
+          ? formattedAvailability
+          : []
           }
         : user.client
           ? {
