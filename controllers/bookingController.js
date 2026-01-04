@@ -1,4 +1,4 @@
-const { Booking, Client, Talent, User, Skill, Review, BookingSlot, BookingReschedule } = require('../models');
+const { Booking, Client, Talent, User, Skill, Review, BookingSlot, BookingReschedule,TalentAvailability } = require('../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
 const axios = require("axios");
@@ -1638,14 +1638,24 @@ exports.TalentAvailability = async (req, res) => {
     const { bookingdates, talent_id } = req.body;
 
     if (!bookingdates || !Array.isArray(bookingdates) || bookingdates.length === 0) {
-      return res.status(400).json({ status: false, message: 'bookingdates array is required', data: {} });
+      return res.status(400).json({
+        status: false,
+        message: 'bookingdates array is required',
+        data: {}
+      });
     }
 
     if (!talent_id) {
-      return res.status(400).json({ status: false, message: 'talent_id is required', data: {} });
+      return res.status(400).json({
+        status: false,
+        message: 'talent_id is required',
+        data: {}
+      });
     }
 
-    // Fetch booked slots
+    // ------------------------------------
+    // 1. Fetch booked slots (UNCHANGED)
+    // ------------------------------------
     const [bookedSlots] = await sequelize.query(`
       SELECT 
         bs.slot_date AS booking_date,
@@ -1653,42 +1663,44 @@ exports.TalentAvailability = async (req, res) => {
       FROM booking_slots bs
       JOIN bookings b ON bs.booking_id = b.id
       WHERE bs.slot_date IN (:bookingdates)
-      AND b.talent_id = :talent_id
+        AND b.talent_id = :talent_id
       ORDER BY bs.slot_date ASC, bs.slot ASC
-    `, { replacements: { bookingdates, talent_id } });
+    `, {
+      replacements: { bookingdates, talent_id }
+    });
 
-    // Fetch talent availability
-    const [talentResult] = await sequelize.query(`
-      SELECT availability
-      FROM talents
-      WHERE id = :talent_id
-      LIMIT 1
-    `, { replacements: { talent_id } });
+    // ------------------------------------
+    // 2. Fetch availability from NEW TABLE
+    // ------------------------------------
+    const availabilityRows = await TalentAvailability.findAll({
+      where: {
+        talent_id,
+        date: { [Op.in]: bookingdates }
+      },
+      attributes: ['date', 'start_time', 'end_time', 'price', 'discount'],
+      order: [['date', 'ASC'], ['start_time', 'ASC']]
+    });
 
-    // NEW: Parse date-based availability
-    const talentAvailability = talentResult[0] && talentResult[0].availability
-      ? JSON.parse(talentResult[0].availability)
-      : [];
-
-    // ------------------------
-    // UPDATED PART STARTS HERE
-    // ------------------------
-
+    // ------------------------------------
+    // 3. Build response (OLD FORMAT)
+    // ------------------------------------
     const data = bookingdates.map(dateStr => {
 
-      // Get booked slots for this date
+      // booked slots for date
       const booked_slots = bookedSlots
         .filter(s => s.booking_date === dateStr)
-        .map(s => ({ booking_time: s.booking_time }));
+        .map(s => ({
+          booking_time: s.booking_time
+        }));
 
-      // Match talent slot exactly for this date
-      const slotForDate = talentAvailability.filter(a => a.date === dateStr);
-
-      const talent_slots = slotForDate.map(s => ({
-        slot: s.slot,
-        price: s.price,
-        discount: s.discount
-      }));
+      // talent slots for date (FROM TABLE)
+      const talent_slots = availabilityRows
+        .filter(a => a.date === dateStr)
+        .map(a => ({
+          slot: `${a.start_time} - ${a.end_time}`, // HH:mm:ss format
+          price: a.price,
+          discount: a.discount
+        }));
 
       return {
         date: dateStr,
@@ -1697,10 +1709,9 @@ exports.TalentAvailability = async (req, res) => {
       };
     });
 
-    // ------------------------
-    // UPDATED PART ENDS HERE
-    // ------------------------
-
+    // ------------------------------------
+    // 4. Final response (UNCHANGED)
+    // ------------------------------------
     return res.status(200).json({
       status: true,
       message: 'Filtered bookings and talent availability retrieved successfully',
@@ -1708,6 +1719,7 @@ exports.TalentAvailability = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('TalentAvailability Error:', error);
     return res.status(500).json({
       status: false,
       message: 'Failed to fetch filtered bookings',

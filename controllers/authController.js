@@ -235,6 +235,15 @@ exports.verifyOTP = async (req, res) => {
     }
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     // response
+    const formattedAvailability = (await TalentAvailability.findAll({
+      where: { talent_id: user.talent.id },
+      attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+    })).map(({ date, start_time, end_time, price, discount }) => ({
+      date,
+      slot: `${start_time} - ${end_time}`,
+      price,
+      discount
+    }));
     const userData = {
       token,
       id: user.id,
@@ -245,7 +254,7 @@ exports.verifyOTP = async (req, res) => {
       is_verified: user.is_verified,
       on_board: user.on_board,
       notification_alert: user.notification_alert,
-      availability: user.availability,
+      availability: formattedAvailability,
       followers: followersCount,
       followings: followingsCount,
       userInfo: user.role === "talent"
@@ -640,6 +649,7 @@ exports.updateProfile = async (req, res) => {
     }
 
     if (req.user.role === 'talent') {
+      await user.update({ on_board: 1 });
       await user.talent.update({
         full_name,
         gender,
@@ -655,7 +665,6 @@ exports.updateProfile = async (req, res) => {
         latitude,      // <-- ADD
         longitude      // <-- ADD
       });
-      await user.update({ on_board: 1 });
     } else {
       await user.update({ on_board: 1 });
       await user.client.update({
