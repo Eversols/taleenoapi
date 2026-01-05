@@ -1461,6 +1461,7 @@ exports.detailsUser = async (req, res) => {
     const userData = {
       id: user.id,
       username: user.username,
+      status: user.status,
       phone_number: user.phone_number,
       email: user.email,
       role: user.role,
