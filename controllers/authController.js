@@ -235,8 +235,9 @@ exports.verifyOTP = async (req, res) => {
     }
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
     // response
+    let formattedAvailability = [];
     if(user.role === "talent"){
-    const formattedAvailability = (await TalentAvailability.findAll({
+        formattedAvailability = (await TalentAvailability.findAll({
       where: { talent_id: user.talent.id },
       attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
     })).map(({ date, start_time, end_time, price, discount }) => ({
@@ -245,8 +246,6 @@ exports.verifyOTP = async (req, res) => {
       price,
       discount
     }));
-    }else{
-     const formattedAvailability = [];
     }
 
     const userData = {
