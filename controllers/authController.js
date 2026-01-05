@@ -1250,7 +1250,6 @@ exports.detailsUser = async (req, res) => {
       return res.status(404).json({ status: false, message: "User not found" });
     }
 
-    // ✅ Convert user to plain JSON
     user = user.toJSON();
 
     // counts
@@ -1259,7 +1258,7 @@ exports.detailsUser = async (req, res) => {
       Follow.count({ where: { followerId: user.id } })
     ]);
 
-    // fetch all skills dictionary
+    // skills dictionary
     const allSkills = await Skill.findAll({ attributes: ["id", "name"] });
     const skillsMap = allSkills.reduce((acc, s) => {
       acc[s.id] = s.name;
@@ -1267,21 +1266,18 @@ exports.detailsUser = async (req, res) => {
     }, {});
 
     let mediaItems = await Media.findAll({
-      where: {
-        userId: id
-      },
+      where: { userId: id },
       order: [["id", "DESC"]]
     });
 
-    // ✅ Convert mediaItems to plain JSON
     mediaItems = mediaItems.map(m => m.toJSON());
 
-    // attach skill names if talent
+    // talent skills
     let talentData = null;
     if (user.role === "talent" && user.talent) {
       talentData = {
         ...user.talent,
-        skills: (user.talent.skills || []).map((s) => ({
+        skills: (user.talent.skills || []).map(s => ({
           id: s.id,
           name: skillsMap[s.id] || null,
           rate: s.rate
@@ -1291,14 +1287,13 @@ exports.detailsUser = async (req, res) => {
 
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, "") || "";
 
-    // Corrected media URL mapping
-    mediaItems.forEach((media) => {
+    mediaItems.forEach(media => {
       if (media.fileUrl && !media.fileUrl.startsWith("http")) {
         media.fileUrl = `${BASE_URL}${media.fileUrl}`;
       }
     });
 
-    // ✅ Reviews with rating breakdown
+    // reviews
     let reviews = await Review.findAll({
       where: { reviewed_id: id },
       include: [
@@ -1316,10 +1311,8 @@ exports.detailsUser = async (req, res) => {
       order: [["created_at", "DESC"]]
     });
 
-    // ✅ Convert reviews to plain JSON
     reviews = reviews.map(r => r.toJSON());
 
-    // Attach extra fields (profile photo, date, likes)
     const loggedInUserId = req.user?.id || null;
 
     for (const rev of reviews) {
@@ -1332,10 +1325,7 @@ exports.detailsUser = async (req, res) => {
         } else if (reviewer.role === "client" && reviewer.client?.profile_photo) {
           photo = `${BASE_URL}${reviewer.client.profile_photo}`;
         }
-        rev.reviewer = {
-          ...reviewer,
-          profile_photo: photo
-        };
+        rev.reviewer = { ...reviewer, profile_photo: photo };
       }
 
       rev.createdAtFormatted = new Date(rev.created_at).toLocaleDateString("en-US", {
@@ -1351,7 +1341,11 @@ exports.detailsUser = async (req, res) => {
       let userLiked = false;
       if (loggedInUserId) {
         const existingLike = await Like.findOne({
-          where: { user_id: loggedInUserId, talent_id: rev.reviewed_id, type: "like" }
+          where: {
+            user_id: loggedInUserId,
+            talent_id: rev.reviewed_id,
+            type: "like"
+          }
         });
         userLiked = !!existingLike;
       }
@@ -1360,26 +1354,30 @@ exports.detailsUser = async (req, res) => {
       rev.userLiked = userLiked;
     }
 
+    // rating
     const totalReviews = reviews.length;
     let rating = 0;
     let ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
     if (totalReviews > 0) {
-      reviews.forEach((rev) => {
+      reviews.forEach(rev => {
         const r = rev.rating || 0;
         rating += r;
         if (ratingBreakdown[r] !== undefined) {
-          ratingBreakdown[r] += 1;
+          ratingBreakdown[r]++;
         }
       });
 
       rating = parseFloat((rating / totalReviews).toFixed(1));
 
-      Object.keys(ratingBreakdown).forEach((star) => {
-        ratingBreakdown[star] = Math.round((ratingBreakdown[star] / totalReviews) * 100);
+      Object.keys(ratingBreakdown).forEach(star => {
+        ratingBreakdown[star] = Math.round(
+          (ratingBreakdown[star] / totalReviews) * 100
+        );
       });
     }
 
+    // ✅ FIXED BOOKING INCLUDE (NO OLD CODE DISTURBED)
     let bookings = await Booking.findAll({
       where: {
         [Op.or]: [{ talent_id: id }, { client_id: id }]
@@ -1398,62 +1396,67 @@ exports.detailsUser = async (req, res) => {
       ],
       include: [
         {
-          model: User,
+          model: Client,
           as: "client",
-          attributes: ["id", "username"],
-          include: [{ association: "client", attributes: ["profile_photo"] }]
+          attributes: ["id", "profile_photo"],
+          include: [
+            {
+              model: User,
+              as: "user",
+              attributes: ["id", "username"]
+            }
+          ]
         },
         {
-          model: User,
+          model: Talent,
           as: "talent",
-          attributes: ["id", "username"],
-          include: [{ association: "talent", attributes: ["profile_photo"] }]
+          attributes: ["id", "profile_photo"],
+          include: [
+            {
+              model: User,
+              as: "user",
+              attributes: ["id", "username"]
+            }
+          ]
         },
         {
           model: BookingSlot,
-          as: "slots",   // ✅ New include
+          as: "slots",
           attributes: ["id", "slot", "slot_date"]
         }
       ],
       order: [["created_at", "DESC"]]
     });
 
+    bookings = bookings.map(b => b.toJSON());
 
-        // ✅ Convert bookings to plain JSON
-        bookings = bookings.map(b => b.toJSON());
-
-    const formattedBookings = bookings.map((b) => {
-      return {
-        ...(b.get ? b.get({ plain: true }) : b),
-        createdAtFormatted: new Date(b.created_at).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric"
-        }),
-        client: b.client
-          ? {
-              ...b.client,
-              profile_photo: b.client.client?.profile_photo
-                ? `${BASE_URL}${b.client.client.profile_photo}`
-                : null,
-            }
-          : null,
-        talent: b.talent
-          ? {
-              ...b.talent,
-              profile_photo: b.talent.talent?.profile_photo
-                ? `${BASE_URL}${b.talent.talent.profile_photo}`
-                : null,
-            }
-          : null,
-        slots: b.slots ? b.slots.map(s => ({
-          id: s.id,
-          slot: s.slot,
-          slot_date: s.slot_date
-        })) : []
-      };
-    });
-
+    const formattedBookings = bookings.map(b => ({
+      ...b,
+      createdAtFormatted: new Date(b.created_at).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      }),
+      client: b.client
+        ? {
+            id: b.client.user?.id,
+            username: b.client.user?.username,
+            profile_photo: b.client.profile_photo
+              ? `${BASE_URL}${b.client.profile_photo}`
+              : null
+          }
+        : null,
+      talent: b.talent
+        ? {
+            id: b.talent.user?.id,
+            username: b.talent.user?.username,
+            profile_photo: b.talent.profile_photo
+              ? `${BASE_URL}${b.talent.profile_photo}`
+              : null
+          }
+        : null,
+      slots: b.slots || []
+    }));
 
     const userData = {
       id: user.id,
@@ -1505,6 +1508,7 @@ exports.detailsUser = async (req, res) => {
     });
   }
 };
+
 exports.updateUserStatus = async (req, res) => {
   try {
     const { userId, status ,reason} = req.body;
