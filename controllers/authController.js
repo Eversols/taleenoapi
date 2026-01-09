@@ -1872,6 +1872,8 @@ exports.getBothProfiles = async (req, res) => {
         }));
       }
 
+      // assign talentData
+
       talentData = {
         ...user.talent.toJSON(),
         skills: mappedSkills,
