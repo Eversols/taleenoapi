@@ -1703,18 +1703,24 @@ exports.switchAccount = async (req, res) => {
         name: skillsMap[s.id] || null,
         rate: s.rate
       }));
-
-      let parsedAvailability = null;
-      try {
-        parsedAvailability = oppositeUser.talent.availability ? JSON.parse(oppositeUser.talent.availability) : null;
-      } catch (err) {
-        parsedAvailability = null;
+      let formattedAvailability = [];
+      if (oppositeUser.role === "talent") {
+        formattedAvailability = (await TalentAvailability.findAll({
+          where: { talent_id: oppositeUser.talent.id },
+          attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+        })).map(({ date, start_time, end_time, price, discount }) => ({
+          date,
+          slot: `${start_time} - ${end_time}`,
+          price,
+          discount
+        }));
       }
+
 
       talentData = {
         ...oppositeUser.talent.toJSON(),
         skills: mappedSkills,
-        availability: parsedAvailability
+        availability: formattedAvailability
       };
     }
 
