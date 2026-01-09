@@ -220,17 +220,9 @@ exports.verifyOTP = async (req, res) => {
         rate: s.rate
       }));
 
-      let parsedAvailability = null;
-      try {
-        parsedAvailability = user.talent.availability ? JSON.parse(user.talent.availability) : null;
-      } catch (err) {
-        parsedAvailability = null;
-      }
-
       talentData = {
         ...user.talent.toJSON(),
         skills: mappedSkills,
-        availability: parsedAvailability
       };
     }
     const BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || '';
@@ -738,17 +730,23 @@ exports.updateProfile = async (req, res) => {
         rate: s.rate
       }));
 
-      let parsedAvailability = null;
-      try {
-        parsedAvailability = user.talent.availability ? JSON.parse(user.talent.availability) : null;
-      } catch (err) {
-        parsedAvailability = null;
+      let formattedAvailability = [];
+      if (user.role === "talent") {
+        formattedAvailability = (await TalentAvailability.findAll({
+          where: { talent_id: user.talent.id },
+          attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+        })).map(({ date, start_time, end_time, price, discount }) => ({
+          date,
+          slot: `${start_time} - ${end_time}`,
+          price,
+          discount
+        }));
       }
 
       talentData = {
         ...user.talent.toJSON(),
         skills: mappedSkills,
-        availability: parsedAvailability
+        availability: formattedAvailability
       };
     }
 
@@ -801,49 +799,80 @@ exports.updateTalentDetails = async (req, res) => {
     // Validate required fields
     if (!skills && !experience_level && !availability) {
       return res.status(400).json(
-        sendJson(false, 'At least one field (skills, experience_level, or availability) is required for update')
+        sendJson(
+          false,
+          'At least one field (skills, experience_level, or availability) is required for update'
+        )
       );
     }
 
-    // Fetch talent with user data
+    // Fetch user with talent profile
     const user = await User.findByPk(req.user.id, {
-      include: [{
-        association: 'talent',
-        attributes: ['id', 'skills', 'experience_level', 'availability']
-      }],
-      attributes: ['id', 'username', 'email']
+      attributes: ['id', 'username', 'email', 'role'],
+      include: [
+        {
+          association: 'talent',
+          attributes: ['id', 'skills', 'experience_level']
+        }
+      ]
     });
-    
+
     if (!user || !user.talent) {
       return res.status(404).json(
         sendJson(false, 'Talent profile not found')
       );
     }
 
-    // Prepare update data
+    // Prepare update payload
     const updateData = {};
-    if (experience_level) updateData.experience_level = experience_level;
-    if (availability) updateData.availability = JSON.stringify(availability);
 
-    // Update talent details
-    await Talent.update(updateData, {
-      where: { id: user.talent.id }
-    });
+    if (skills) updateData.skills = skills;
+    if (experience_level) updateData.experience_level = experience_level;
+
+    // Update talent table
+    if (Object.keys(updateData).length > 0) {
+      await Talent.update(updateData, {
+        where: { id: user.talent.id }
+      });
+    }
+
+    // Update user onboarding flag
+    await user.update({ on_board: 1 });
+
+    // Fetch availability (normalized table)
+    let formattedAvailability = [];
+
+    if (user.role === 'talent') {
+      const availabilityRows = await TalentAvailability.findAll({
+        where: { talent_id: user.talent.id },
+        attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+      });
+
+      formattedAvailability = availabilityRows.map(
+        ({ date, start_time, end_time, price, discount }) => ({
+          date,
+          slot: `${start_time} - ${end_time}`,
+          price,
+          discount
+        })
+      );
+    }
 
     // Fetch updated talent data
     const updatedTalent = await Talent.findByPk(user.talent.id, {
-      attributes: ['id', 'experience_level', 'availability'],
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'username', 'email']
-      }]
+      attributes: ['id', 'experience_level'],
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email']
+        }
+      ]
     });
-    await user.update({ on_board: 1 });
-    // Parse availability if it exists
+
     const responseData = {
       ...updatedTalent.get({ plain: true }),
-      availability: updatedTalent.availability ? JSON.parse(updatedTalent.availability) : null
+      availability: formattedAvailability
     };
 
     return res.status(200).json(
@@ -1830,17 +1859,23 @@ exports.getBothProfiles = async (req, res) => {
         rate: s.rate
       }));
 
-      let parsedAvailability = null;
-      try {
-        parsedAvailability = user.talent.availability ? JSON.parse(user.talent.availability) : null;
-      } catch (err) {
-        parsedAvailability = null;
+      let formattedAvailability = [];
+      if (user.role === "talent") {
+        formattedAvailability = (await TalentAvailability.findAll({
+          where: { talent_id: user.talent.id },
+          attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+        })).map(({ date, start_time, end_time, price, discount }) => ({
+          date,
+          slot: `${start_time} - ${end_time}`,
+          price,
+          discount
+        }));
       }
 
       talentData = {
         ...user.talent.toJSON(),
         skills: mappedSkills,
-        availability: parsedAvailability
+        availability: formattedAvailability
       };
     }
 

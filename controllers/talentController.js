@@ -1,4 +1,4 @@
-const { Like, Share, Talent, User, Wishlist, Skill,Media, sequelize } = require('../models');
+const { Like, Share, Talent, User, Wishlist, Skill,Media,TalentAvailability, sequelize } = require('../models');
 const { sendJson } = require('../utils/helpers');
 const resolveTalentSkills = require("../utils/resolveTalentSkills");
 const { Op } = require('sequelize');
@@ -303,13 +303,18 @@ exports.getTalentDetails = async (req, res) => {
       name: skillsMap[s.id] || null,
       rate: s.rate
     }));
-    let availabilityHours = user.availability;
-    try {
-      const availData = JSON.parse(user.talent.availability || '[]');
-      availabilityHours = user.availability;
-    } catch (err) {
-      console.error("Error parsing availability:", err.message);
-    }
+      let availabilityHours = [];
+      if (user.role === "talent") {
+        availabilityHours = (await TalentAvailability.findAll({
+          where: { talent_id: user.talent.id },
+          attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+        })).map(({ date, start_time, end_time, price, discount }) => ({
+          date,
+          slot: `${start_time} - ${end_time}`,
+          price,
+          discount
+        }));
+      }
 
     // Fetch all media related to this talent
     const mediaItems = await Media.findAll({
