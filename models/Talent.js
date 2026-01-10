@@ -123,10 +123,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false
     },
-    availability: {
-      type: DataTypes.JSON,
-      allowNull: true
-    },
     deleted_at: {
       type: DataTypes.DATE,
       allowNull: true

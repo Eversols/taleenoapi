@@ -275,7 +275,7 @@ exports.getTalentDetails = async (req, res) => {
           association: 'talent',
           attributes: [
             "id", "full_name", "city", "country", "profile_photo", "video_url",
-            "main_talent", "skills", "availability",
+            "main_talent", "skills",
             [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'like')`), 'likes_count'],
             [sequelize.literal(`(SELECT COUNT(*) FROM likes l WHERE l.talent_id = talent.id AND l.type = 'unlike')`), 'unlikes_count'],
             [sequelize.literal(`(SELECT COUNT(*) FROM bookings b WHERE b.talent_id = talent.id)`), 'total_bookings'],
@@ -617,7 +617,6 @@ exports.getTalents = async (req, res) => {
         t.about,
         t.profile_photo,
         t.is_approved AS status,  -- ✅ alias is_approved as status
-        t.availability,
         t.video_url,
         t.created_at,
         u.id AS user_id,

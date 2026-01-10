@@ -1768,7 +1768,6 @@ exports.AdminBookings = async (req, res) => {
         t.hourly_rate AS talent_hourly_rate,
         tcc.name AS talent_city_name,
         tctry.name AS talent_country_name,
-        t.availability AS availability,
 
         ut.id AS talent_user_id,
         ut.username AS talent_username,
@@ -3615,6 +3614,110 @@ exports.getPaymentStatus = async (req, res) => {
     );
   }
 };
+exports.dashboadTop5Bookings = async (req, res) => {
+  try {
+    const [results] = await sequelize.query(`
+      SELECT
+        b.id AS booking_id,
+        b.created_at,
+        b.time_slot,
+        b.status,
+
+        c.full_name AS client_name,
+        c.profile_photo AS client_photo,
+
+        t.full_name AS talent_name,
+        t.profile_photo AS talent_photo,
+
+        s.name AS skill_name
+
+      FROM bookings b
+      LEFT JOIN clients c ON b.client_id = c.id
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN skills s ON b.skill_id = s.id
+
+      ORDER BY b.created_at DESC
+      LIMIT 5
+    `);
+
+    const bookings = results.map(row => ({
+      booking_id: row.booking_id,
+      date: row.created_at
+        ? new Date(row.created_at).toISOString().split('T')[0]
+        : null,
+      time: row.time_slot || '',
+      status: row.status || 'pending',
+      skill_name: row.skill_name || '',
+      client_name: row.client_name || '',
+      talent_name: row.talent_name || '',
+      client_photo: row.client_photo || null,
+      talent_photo: row.talent_photo || null
+    }));
+
+    return res.status(200).json(
+      sendJson(true, 'Dashboard top 5 bookings retrieved successfully', bookings)
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch dashboard bookings', { error: error.message })
+    );
+  }
+};
+exports.dashboardTop5PaidBookings = async (req, res) => {
+  try {
+    const [results] = await sequelize.query(`
+      SELECT
+        b.id AS booking_id,
+        b.created_at,
+        b.time_slot,
+        b.status,
+
+        c.full_name AS client_name,
+        c.profile_photo AS client_photo,
+
+        t.full_name AS talent_name,
+        t.profile_photo AS talent_photo,
+
+        s.name AS skill_name
+
+      FROM bookings b
+      LEFT JOIN clients c ON b.client_id = c.id
+      LEFT JOIN talents t ON b.talent_id = t.id
+      LEFT JOIN skills s ON b.skill_id = s.id
+
+      WHERE b.status = 'isPaid'
+      ORDER BY b.created_at DESC
+      LIMIT 5
+    `);
+
+    const bookings = results.map(row => ({
+      booking_id: row.booking_id,
+      date: row.created_at
+        ? new Date(row.created_at).toISOString().split('T')[0]
+        : null,
+      time: row.time_slot || '',
+      status: row.status,
+      skill_name: row.skill_name || '',
+      client_name: row.client_name || '',
+      talent_name: row.talent_name || '',
+      client_photo: row.client_photo || null,
+      talent_photo: row.talent_photo || null
+    }));
+
+    return res.status(200).json(
+      sendJson(true, 'Dashboard top 5 paid bookings retrieved successfully', bookings)
+    );
+
+  } catch (error) {
+    return res.status(500).json(
+      sendJson(false, 'Failed to fetch paid dashboard bookings', {
+        error: error.message
+      })
+    );
+  }
+};
+
 
  
 
