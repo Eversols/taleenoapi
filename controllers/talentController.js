@@ -339,6 +339,7 @@ exports.getTalentDetails = async (req, res) => {
       talent: {
         title: user.talent.main_talent || user.talent.full_name,
         userName: user.username,
+        minAvailableHours: user.availability || 0,
         description: user.talent.description || `Expert in ${user.talent.main_talent || 'their field'}`,
         skills: talentSkillsWithNames,
         availabilityHours,
