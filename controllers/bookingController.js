@@ -622,7 +622,7 @@ exports.getBookingDetails = async (req, res) => {
     let totalPriceFromAvailability = 0;
 
     const [talentAvailabilityData] = await sequelize.query(
-      `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
+      `SELECT availability_no_use as availability FROM talents WHERE id = :id LIMIT 1`,
       {
         replacements: { id: row.talent_id },
         type: sequelize.QueryTypes.SELECT
