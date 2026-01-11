@@ -133,7 +133,7 @@ exports.list = async (req, res) => {
     // Append BASE_URL to fileUrl
     const formattedMedia = media.map(item => {
       const data = item.toJSON();
-      data.fileUrl = data.fileUrl ? `${BASE_URL}${data.fileUrl}` : null;
+      data.fileUrl = data.fileUrl ? `${data.fileUrl}` : null;
       return data;
     });
 
