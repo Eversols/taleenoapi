@@ -67,6 +67,7 @@ exports.getBookings = async (req, res) => {
           b.time_slot,
           b.status,
           b.note,
+          b.amount,
           
           c.id AS client_id,
           c.full_name AS client_full_name,
@@ -124,6 +125,7 @@ exports.getBookings = async (req, res) => {
           b.time_slot,
           b.status,
           b.note,
+          b.amount,
           
           c.id AS client_id,
           c.full_name AS client_full_name,
@@ -275,25 +277,25 @@ exports.getBookings = async (req, res) => {
           booking_date: group.booking_date,
           booking_times: mergeContinuousSlots(group.booking_times)
         }));
-        let totalPriceFromAvailability = 0;
-        const [talentAvailabilityData] = await sequelize.query(
-          `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
-          {
-            replacements: { id: row.talent_id },
-            type: sequelize.QueryTypes.SELECT
-          }
-        );
-        if (talentAvailabilityData?.availability) {
-          const availability = JSON.parse(talentAvailabilityData.availability);
-          formattedSlots.forEach((book) => {
-            const match = availability.find((a) => a.date === book.booking_date);
-            if (match) {
-              const pricePerSlot = Number(match.price) || 0;
-              const numberOfBlocks = match.slot.split(",").length;
-              totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
-            }
-          });
-        }
+        let totalPriceFromAvailability = row.amount || 0;
+        // const [talentAvailabilityData] = await sequelize.query(
+        //   `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
+        //   {
+        //     replacements: { id: row.talent_id },
+        //     type: sequelize.QueryTypes.SELECT
+        //   }
+        // );
+        // if (talentAvailabilityData?.availability) {
+        //   const availability = JSON.parse(talentAvailabilityData.availability);
+        //   formattedSlots.forEach((book) => {
+        //     const match = availability.find((a) => a.date === book.booking_date);
+        //     if (match) {
+        //       const pricePerSlot = Number(match.price) || 0;
+        //       const numberOfBlocks = match.slot.split(",").length;
+        //       totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
+        //     }
+        //   });
+        // }
 
 
 
@@ -375,13 +377,18 @@ exports.getBookings = async (req, res) => {
 
 exports.createBooking = async (req, res) => {
   try {
-    const { talent_id, skill_id, time_slots, note } = req.body;
+    const { talent_id, skill_id, time_slots, note,total_amount } = req.body;
 
     // Validate input
     // if (!talent_id || !skill_id || typeof time_slots !== 'object') {
     if (!talent_id || typeof time_slots !== 'object') {
       return res.status(400).json(
         sendJson(false, 'Talent ID, skill ID and time slots are required')
+      );
+    }
+    if (!total_amount ) {
+      return res.status(400).json(
+        sendJson(false, 'Total amount is required')
       );
     }
 
@@ -429,6 +436,8 @@ exports.createBooking = async (req, res) => {
       talent_id,
       // skill_id,
       note: note || null,
+      amount: total_amount || 0,
+      total_price: total_amount || 0,
       status: 'pending'
     });
 
@@ -524,6 +533,7 @@ exports.getBookingDetails = async (req, res) => {
         b.status,
         b.note,
         b.skill_id,
+        b.amount,
         
         c.id AS client_id,
         c.full_name AS client_full_name,
@@ -775,7 +785,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id: row.client_user_id,
-        price: totalPriceFromAvailability,
+        price: row.amount || 0,
         location: row.client_location || '',
         status: row.status || 'pending',
         username: row.client_full_name || '',
