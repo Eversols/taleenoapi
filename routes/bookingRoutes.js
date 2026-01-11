@@ -16,6 +16,7 @@ router.post('/bookingsSlotshaveclient', authenticate,bookingController.bookingsS
 router.put("/reschedule", authenticate,bookingController.rescheduleBooking);
 router.post("/checkout", authenticate,bookingController.createCheckout);
 router.post("/TalentAvailability", authenticate,bookingController.TalentAvailability);
+router.post("/TestNewAvailability", authenticate,bookingController.TestNewAvailability);
 router.get("/status", authenticate,bookingController.getPaymentStatus);
 
 router.put('/reschedule/approve/:id', authenticate, bookingController.approveReschedule);

@@ -3729,9 +3729,108 @@ exports.dashboardTop5PaidBookings = async (req, res) => {
 };
 
 
- 
+exports.TestNewAvailability = async (req, res) => {
+  try {
+    const { talent_id, start_date, end_date } = req.body;
 
+    if (!talent_id) {
+      return res.status(400).json({
+        status: false,
+        message: 'talent_id is required',
+        data: {}
+      });
+    }
 
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        status: false,
+        message: 'start_date and end_date are required',
+        data: {}
+      });
+    }
 
+    // ------------------------------------
+    // 0. Build date list from range
+    // ------------------------------------
+    const bookingdates = [];
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      bookingdates.push(d.toISOString().split("T")[0]);
+    }
+
+    // ------------------------------------
+    // 1. Fetch booked slots (UNCHANGED LOGIC)
+    // ------------------------------------
+    const [bookedSlots] = await sequelize.query(`
+      SELECT 
+        bs.slot_date AS booking_date,
+        bs.slot AS booking_time
+      FROM booking_slots bs
+      JOIN bookings b ON bs.booking_id = b.id
+      WHERE bs.slot_date IN (:bookingdates)
+        AND b.talent_id = :talent_id
+      ORDER BY bs.slot_date ASC, bs.slot ASC
+    `, {
+      replacements: { bookingdates, talent_id }
+    });
+
+    // ------------------------------------
+    // 2. Fetch availability
+    // ------------------------------------
+    const availabilityRows = await TalentAvailability.findAll({
+      where: {
+        talent_id,
+        date: { [Op.in]: bookingdates }
+      },
+      attributes: ['date', 'start_time', 'end_time', 'price', 'discount'],
+      order: [['date', 'ASC'], ['start_time', 'ASC']]
+    });
+
+    // ------------------------------------
+    // 3. Build response (SAME FORMAT)
+    // ------------------------------------
+    const data = bookingdates.map(dateStr => {
+
+      const booked_slots = bookedSlots
+        .filter(s => s.booking_date === dateStr)
+        .map(s => ({
+          booking_time: s.booking_time
+        }));
+
+      const talent_slots = availabilityRows
+        .filter(a => a.date === dateStr)
+        .map(a => ({
+          slot: `${a.start_time} - ${a.end_time}`,
+          price: a.price,
+          discount: a.discount
+        }));
+
+      return {
+        date: dateStr,
+        booked_slots,
+        talent_slots
+      };
+    });
+
+    // ------------------------------------
+    // 4. Final response
+    // ------------------------------------
+    return res.status(200).json({
+      status: true,
+      message: 'Filtered bookings and talent availability retrieved successfully',
+      data
+    });
+
+  } catch (error) {
+    console.error('TalentAvailability Error:', error);
+    return res.status(500).json({
+      status: false,
+      message: 'Failed to fetch filtered bookings',
+      data: { error: error.message }
+    });
+  }
+};
 
 
