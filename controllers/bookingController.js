@@ -802,7 +802,7 @@ exports.getBookingDetails = async (req, res) => {
       response = {
         booking_id: row.booking_id,
         user_id: row.talent_user_id,
-        price: totalPriceFromAvailability,
+        price: row.amount || 0,
         // location: [row.talent_country_name, row.talent_city_name].filter(Boolean).join(', '),
         location: row.client_location,
         status: row.status || 'pending',
