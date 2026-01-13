@@ -780,6 +780,18 @@ exports.getBookingDetails = async (req, res) => {
       : null;
 
     // ✅ Role based response formatting
+    const reviewedUserId =
+      role === 'talent'
+        ? row.talent_user_id   // client reviewed talent
+        : row.client_user_id;  // talent reviewed client
+
+    const review = await Review.findOne({
+      where: {
+        booking_id: row.booking_id,
+        reviewed_id: reviewedUserId
+      }
+    });
+
     let response;
     if (role === "talent") {
       response = {
@@ -795,6 +807,8 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
+        rating: review?.rating || null,
+        comment: review?.comment || null,
         bookedSlots: formattedSlots, // unique slots for this booking
         ...SkillRate
       };
@@ -813,6 +827,8 @@ exports.getBookingDetails = async (req, res) => {
         description: row.note || '',
         skill: row.skill_name || '',
         review_id: row.review_id || '',
+        rating: review?.rating || null,
+        comment: review?.comment || null,
         bookedSlots: formattedSlots, // unique slots for this booking
         ...SkillRate
       };
@@ -979,6 +995,11 @@ exports.updateBookingStatus = async (req, res) => {
           sendJson(true, 'Review is still pending. Status set to reviewPending.', { updated_booking: booking })
         );
       }
+    }
+    if (status === 'rejected') {
+      await BookingSlot.destroy({
+        where: { booking_id: booking.id }
+      });
     }
 
     // Update status normally
