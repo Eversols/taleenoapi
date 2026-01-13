@@ -53,41 +53,20 @@ exports.getBookings = async (req, res) => {
     const offset = (page - 1) * limit;
 
     let whereClause = '';
-    if (searchDate) {
-      whereClause = `AND DATE(b.created_at) = :searchDate`;
-    }
+    if (searchDate) whereClause = `AND DATE(b.created_at) = :searchDate`;
+
     let results = [];
     let totalCount = 0;
-
+    let completedBookingsCount = 0; // ✅ count of completed bookings
     if (role === "talent") {
       [results] = await sequelize.query(`
-        SELECT 
-          b.id AS booking_id,
-          b.created_at,
-          b.time_slot,
-          b.status,
-          b.note,
-          b.amount,
-          
-          c.id AS client_id,
-          c.full_name AS client_full_name,
-          c.location AS client_location,
-          c.profile_photo AS client_profile_photo,
-          cc.name AS client_city_name,
-          ctryc.name AS client_country_name,
-
-          t.id AS talent_id,
-          t.full_name AS talent_full_name,
-          t.location AS talent_location,
-          t.hourly_rate AS talent_hourly_rate,
-          tcc.name AS talent_city_name,
-          tctry.name AS talent_country_name,
-
-          s.id AS skill_id,
-          s.name AS skill_name,
-
-          r.rating AS rating
-
+        SELECT b.id AS booking_id, b.created_at, b.time_slot, b.status, b.note, b.amount,
+               c.id AS client_id, c.full_name AS client_full_name, c.location AS client_location, c.profile_photo AS client_profile_photo,
+               cc.name AS client_city_name, ctryc.name AS client_country_name,
+               t.id AS talent_id, t.full_name AS talent_full_name, t.location AS talent_location, t.hourly_rate AS talent_hourly_rate,
+               tcc.name AS talent_city_name, tctry.name AS talent_country_name,
+               s.id AS skill_id, s.name AS skill_name,
+               r.rating AS rating
         FROM bookings b
         LEFT JOIN clients c ON b.client_id = c.id
         LEFT JOIN talents t ON b.talent_id = t.id
@@ -119,34 +98,13 @@ exports.getBookings = async (req, res) => {
 
     } else if (role === "client") {
       [results] = await sequelize.query(`
-        SELECT 
-          b.id AS booking_id,
-          b.created_at,
-          b.time_slot,
-          b.status,
-          b.note,
-          b.amount,
-          
-          c.id AS client_id,
-          c.full_name AS client_full_name,
-          c.location AS client_location,
-          c.profile_photo AS client_profile_photo,
-          cc.name AS client_city_name,
-          ctryc.name AS client_country_name,
-
-          t.id AS talent_id,
-          t.location AS talent_location,
-          t.full_name AS talent_full_name,
-          t.profile_photo AS talent_profile_photo,
-          t.hourly_rate AS talent_hourly_rate,
-          tcc.name AS talent_city_name,
-          tctry.name AS talent_country_name,
-
-          s.id AS skill_id,
-          s.name AS skill_name,
-
-          r.rating AS rating
-
+        SELECT b.id AS booking_id, b.created_at, b.time_slot, b.status, b.note, b.amount,
+               c.id AS client_id, c.full_name AS client_full_name, c.location AS client_location, c.profile_photo AS client_profile_photo,
+               cc.name AS client_city_name, ctryc.name AS client_country_name,
+               t.id AS talent_id, t.location AS talent_location, t.full_name AS talent_full_name, t.profile_photo AS talent_profile_photo, t.hourly_rate AS talent_hourly_rate,
+               tcc.name AS talent_city_name, tctry.name AS talent_country_name,
+               s.id AS skill_id, s.name AS skill_name,
+               r.rating AS rating
         FROM bookings b
         LEFT JOIN clients c ON b.client_id = c.id
         LEFT JOIN talents t ON b.talent_id = t.id
@@ -180,124 +138,84 @@ exports.getBookings = async (req, res) => {
       return res.status(403).json(sendJson(false, 'Invalid role.'));
     }
 
-    let totalHour = 0;
+    // ✅ total hours only for completed bookings
+    let totalHours = 0;
     let totalRate = 0;
 
     const Bookings = await Promise.all(
       results.map(async row => {
-        const rate = parseFloat(row.talent_hourly_rate) || 0;
-        totalHour += 1;
+        let rate = parseFloat(row.talent_hourly_rate) || 0;
         totalRate += rate;
 
+        // Fix skills parsing
         const [talent] = await sequelize.query(
           `SELECT skills FROM talents WHERE id = :id LIMIT 1`,
           { replacements: { id: row.talent_id }, type: sequelize.QueryTypes.SELECT }
         );
 
-        if (talent && talent.skills) {
-          try {
-            const skills = JSON.parse(talent.skills);
-            const skillData = skills.find(s => s.id === row.skill_id);
-            if (skillData && skillData.rate) {
-              rate = parseFloat(skillData.rate);
-            }
-          } catch (err) {
-            console.error("Error parsing skills JSON:", err.message);
-          }
+        let skills = talent?.skills || [];
+        if (typeof skills === 'string') {
+          try { skills = JSON.parse(skills); } 
+          catch (err) { skills = []; }
         }
+
+        const skillData = skills.find(s => s.id === row.skill_id);
+        if (skillData && skillData.rate) rate = parseFloat(skillData.rate);
 
         const booking_date = row.created_at
           ? new Date(row.created_at).toISOString().split('T')[0]
           : null;
 
-        let location = "";
-        if (row.talent_city_name && row.talent_country_name) {
-          location = `${row.talent_country_name}, ${row.talent_city_name}`;
-        }
-        function mergeContinuousSlots(times) {
-          if (!times || times.length === 0) return [];
-
-          const sorted = [...times].sort((a, b) => {
-            const [startA] = a.split(' - ');
-            const [startB] = b.split(' - ');
-            return startA.localeCompare(startB);
-          });
-
-          const merged = [];
-          let currentStart = null;
-          let currentEnd = null;
-
-          for (let i = 0; i < sorted.length; i++) {
-            const [start, end] = sorted[i].split(' - ');
-
-            if (!currentStart) {
-              currentStart = start;
-              currentEnd = end;
-              continue;
-            }
-
-            // If current slot starts exactly at the previous end → merge it
-            if (start === currentEnd) {
-              currentEnd = end;
-            } else {
-              // Push completed range
-              merged.push(`${currentStart} - ${currentEnd}`);
-              currentStart = start;
-              currentEnd = end;
-            }
-          }
-
-          // Push last one
-          merged.push(`${currentStart} - ${currentEnd}`);
-
-          return merged;
-        }
+        // Booked slots
         const [bookedSlots] = await sequelize.query(`
-          SELECT 
-            bs.slot_date AS booking_date,
-            bs.slot AS booking_time
-          FROM booking_slots bs
-          WHERE bs.booking_id = :booking_id
-          ORDER BY bs.slot_date ASC, bs.slot ASC
+          SELECT slot_date AS booking_date, slot AS booking_time
+          FROM booking_slots
+          WHERE booking_id = :booking_id
+          ORDER BY slot_date ASC, slot ASC
         `, { replacements: { booking_id: row.booking_id } });
 
-        const groupedSlots = bookedSlots.reduce((acc, slot) => {
-          let existing = acc.find(item => item.booking_date === slot.booking_date);
-          if (existing) {
-            existing.booking_times.push(slot.booking_time);
-          } else {
-            acc.push({
-              booking_date: slot.booking_date,
-              booking_times: [slot.booking_time]
-            });
+        // Calculate hours for this booking
+        const [[hourResult]] = await sequelize.query(`
+          SELECT SUM(TIMESTAMPDIFF(
+            MINUTE,
+            STR_TO_DATE(SUBSTRING_INDEX(slot, ' - ', 1), '%H:%i'),
+            STR_TO_DATE(SUBSTRING_INDEX(slot, ' - ', -1), '%H:%i')
+          )) / 60 AS total_hours
+          FROM booking_slots
+          WHERE booking_id = :booking_id
+        `, { replacements: { booking_id: row.booking_id } });
+
+        const totalHoursForBooking = hourResult.total_hours ? Number(parseFloat(hourResult.total_hours).toFixed(2)) : 0;
+
+
+        if (row.status === 'completed') {
+          totalHours += totalHoursForBooking;
+          completedBookingsCount++;
+        }
+        // Merge slots (your old logic)
+        function mergeContinuousSlots(times) {
+          if (!times || times.length === 0) return [];
+          const sorted = [...times].sort((a, b) => a.split(' - ')[0].localeCompare(b.split(' - ')[0]));
+          const merged = [];
+          let currentStart = null, currentEnd = null;
+          for (const t of sorted) {
+            const [start, end] = t.split(' - ');
+            if (!currentStart) { currentStart = start; currentEnd = end; continue; }
+            if (start === currentEnd) currentEnd = end;
+            else { merged.push(`${currentStart} - ${currentEnd}`); currentStart = start; currentEnd = end; }
           }
+          merged.push(`${currentStart} - ${currentEnd}`);
+          return merged;
+        }
+
+        const groupedSlots = bookedSlots.reduce((acc, slot) => {
+          let existing = acc.find(a => a.booking_date === slot.booking_date);
+          if (existing) existing.booking_times.push(slot.booking_time);
+          else acc.push({ booking_date: slot.booking_date, booking_times: [slot.booking_time] });
           return acc;
         }, []);
-        const formattedSlots = groupedSlots.map(group => ({
-          booking_date: group.booking_date,
-          booking_times: mergeContinuousSlots(group.booking_times)
-        }));
-        let totalPriceFromAvailability = row.amount || 0;
-        // const [talentAvailabilityData] = await sequelize.query(
-        //   `SELECT availability FROM talents WHERE id = :id LIMIT 1`,
-        //   {
-        //     replacements: { id: row.talent_id },
-        //     type: sequelize.QueryTypes.SELECT
-        //   }
-        // );
-        // if (talentAvailabilityData?.availability) {
-        //   const availability = JSON.parse(talentAvailabilityData.availability);
-        //   formattedSlots.forEach((book) => {
-        //     const match = availability.find((a) => a.date === book.booking_date);
-        //     if (match) {
-        //       const pricePerSlot = Number(match.price) || 0;
-        //       const numberOfBlocks = match.slot.split(",").length;
-        //       totalPriceFromAvailability += pricePerSlot * numberOfBlocks;
-        //     }
-        //   });
-        // }
 
-
+        const formattedSlots = groupedSlots.map(g => ({ booking_date: g.booking_date, booking_times: mergeContinuousSlots(g.booking_times) }));
 
         return {
           booking_id: row.booking_id,
@@ -307,40 +225,35 @@ exports.getBookings = async (req, res) => {
           description: row.note || '',
           rating: row.rating || null,
           skill_name: row.skill_name || '',
-          // location: role === "client" ? row.talent_location : row.client_location,
           location: row.client_location,
           rate,
           bookedSlots,
-          totalPriceFromAvailability,
+          totalHoursForBooking,
+          totalPriceFromAvailability: row.amount || 0,
           ...(role === "talent"
             ? {
               client_name: row.client_full_name || '',
-              client_profile_photo: row.client_profile_photo
-                ? (row.client_profile_photo.startsWith('http')
-                  ? row.client_profile_photo
-                  : `${row.client_profile_photo.replace(/^\//, '')}`)
-                : null,
+              client_profile_photo: row.client_profile_photo?.startsWith('http') 
+                ? row.client_profile_photo 
+                : row.client_profile_photo?.replace(/^\//, '') || null
             }
             : {
               talent_name: row.talent_full_name || '',
-              talent_profile_photo: row.talent_profile_photo
-                ? (row.talent_profile_photo.startsWith('http')
-                  ? row.talent_profile_photo
-                  : `${row.talent_profile_photo.replace(/^\//, '')}`)
-                : null,
+              talent_profile_photo: row.talent_profile_photo?.startsWith('http') 
+                ? row.talent_profile_photo 
+                : row.talent_profile_photo?.replace(/^\//, '') || null
             })
         };
       })
     );
 
     const bookings = {
-      totaltask: Bookings.length,
-      totalHour,
+      totaltask: completedBookingsCount,
+      totalHours,
       rating: (() => {
         const rated = Bookings.filter(b => b.rating !== null);
-        if (rated.length === 0) return 0;
-        const total = rated.reduce((sum, b) => sum + Number(b.rating), 0);
-        return Number((total / rated.length).toFixed(1)); // average rating
+        if (!rated.length) return 0;
+        return Number((rated.reduce((sum, b) => sum + Number(b.rating), 0) / rated.length).toFixed(1));
       })(),
       booking: Bookings.map(b => ({
         skillname: b.skill_name,
@@ -348,28 +261,26 @@ exports.getBookings = async (req, res) => {
         location: b.location,
         price: b.totalPriceFromAvailability,
         status: b.status,
-        date: b.bookedSlots.length > 0 ? b.bookedSlots[0].booking_date : null,
+        date: b.bookedSlots.length ? b.bookedSlots[0].booking_date : null,
         day: b.booking_date ? new Date(b.booking_date).toLocaleDateString('en-US', { weekday: 'long' }) : '',
         description: b.description,
         bookingid: b.booking_id,
         profilePhoto: role === "talent" ? b.client_profile_photo : b.talent_profile_photo,
-        rating: b.rating || 0
+        rating: b.rating || 0,
+        totalHours: b.totalHoursForBooking
       })),
       totalRecords: totalCount,
       currentPage: page,
       totalPages: Math.ceil(totalCount / limit)
     };
 
-    return res.status(200).json(
-      sendJson(true, 'Bookings retrieved successfully', bookings)
-    );
+    return res.status(200).json(sendJson(true, 'Bookings retrieved successfully', bookings));
 
   } catch (error) {
-    return res.status(500).json(
-      sendJson(false, 'Failed to fetch bookings', { error: error.message })
-    );
+    return res.status(500).json(sendJson(false, 'Failed to fetch bookings', { error: error.message }));
   }
 };
+
 
 
 
