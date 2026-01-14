@@ -833,6 +833,22 @@ const isTalentAvailable = (availabilities, available_date, available_time, price
 
   return false;
 };
+const filterAvailabilitiesByDate = (availabilities, available_date) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // If user selected a date → only that date
+  if (available_date) {
+    return availabilities.filter(a => a.date === available_date);
+  }
+
+  // If NO date selected → allow only today & future
+  return availabilities.filter(a => {
+    const aDate = new Date(a.date);
+    aDate.setHours(0, 0, 0, 0);
+    return aDate >= today;
+  });
+};
 
 exports.testingFeed = async (req, res) => {
   try {
@@ -933,11 +949,11 @@ exports.testingFeed = async (req, res) => {
         if (!match) continue;
       }
 
-      const availabilities = await TalentAvailability.findAll({
+      let availabilities = await TalentAvailability.findAll({
         where: { talent_id: user.talent.id },
         attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
       });
-
+      availabilities = filterAvailabilitiesByDate(availabilities, available_date);
       if (available_date || available_time || price_range) {
         if (!isTalentAvailable(availabilities, available_date, available_time, price_range)) {
           continue;
