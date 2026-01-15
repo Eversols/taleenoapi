@@ -1736,7 +1736,8 @@ exports.switchAccount = async (req, res) => {
       if (oppositeUser.role === "talent") {
         formattedAvailability = (await TalentAvailability.findAll({
           where: { talent_id: oppositeUser.talent.id },
-          attributes: ['date', 'start_time', 'end_time', 'price', 'discount']
+          attributes: ['date', 'start_time', 'end_time', 'price', 'discount'],
+           order: [['date', 'ASC']]
         })).map(({ date, start_time, end_time, price, discount }) => ({
           date,
           slot: `${start_time} - ${end_time}`,
@@ -1773,14 +1774,14 @@ exports.switchAccount = async (req, res) => {
           ? {
               ...talentData,
               profile_photo: talentData?.profile_photo
-                ? `${BASE_URL}${talentData.profile_photo}`
+                ? `${talentData.profile_photo}`
                 : null
             }
           : oppositeUser.client
           ? {
               ...oppositeUser.client.toJSON(),
               profile_photo: oppositeUser.client.profile_photo
-                ? `${BASE_URL}${oppositeUser.client.profile_photo}`
+                ? `${oppositeUser.client.profile_photo}`
                 : null
             }
           : null
@@ -2034,7 +2035,7 @@ exports.save_talent_availability = async (req, res) => {
     if (!Array.isArray(parsedSkills) || parsedSkills.length === 0) {
       await transaction.rollback();
       return res.status(400).json(
-        sendJson(false, 'Skills must be a non-empty array')
+        sendJson(false, 'Please set skill first then you will be able to set availability.')
       );
     }
 

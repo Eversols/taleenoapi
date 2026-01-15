@@ -1801,7 +1801,14 @@ exports.TalentAvailability = async (req, res) => {
         bs.slot_date AS booking_date,
         bs.slot AS booking_time
       FROM booking_slots bs
-      JOIN bookings b ON bs.booking_id = b.id
+      JOIN bookings b
+        ON bs.booking_id = b.id
+       AND b.status != 'rejected'
+      JOIN talent_availabilities ta
+        ON ta.talent_id = b.talent_id
+       AND ta.date = bs.slot_date
+       AND TIME(SUBSTRING_INDEX(bs.slot, ' - ', 1)) >= ta.start_time
+       AND TIME(SUBSTRING_INDEX(bs.slot, ' - ', -1)) <= ta.end_time
       WHERE bs.slot_date IN (:bookingdates)
         AND b.talent_id = :talent_id
       ORDER BY bs.slot_date ASC, bs.slot ASC
