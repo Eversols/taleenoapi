@@ -1487,12 +1487,31 @@ exports.detailsUser = async (req, res) => {
       slots: b.slots || []
     }));
 
+    let formattedAvailability = [];
+    
+    // ✅ FIXED: Changed from b.client.user?.id to user.talent?.id
+    if (user.role === "talent" && user.talent?.id) {
+      formattedAvailability = (await TalentAvailability.findAll({
+        where: { talent_id: user.talent.id },
+        attributes: ['id','date', 'start_time', 'end_time', 'price', 'discount'],
+        order: [['date', 'ASC']]
+      })).map(({ id, date, start_time, end_time, price, discount }) => ({
+        id,
+        date,
+        slot: `${start_time} - ${end_time}`,
+        price,
+        discount
+      }));
+    }
+
     const userData = {
+      TalentAvailability: formattedAvailability,
       id: user.id,
       username: user.username,
       status: user.status,
       phone_number: user.phone_number,
       email: user.email,
+      is_verified_by_admin: user.is_verified_by_admin,
       role: user.role,
       is_verified: user.is_verified,
       on_board: user.on_board,
@@ -2112,3 +2131,199 @@ exports.save_talent_availability = async (req, res) => {
   }
 };
 
+exports.updateAvailability = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id, talent_id, date, start_time, end_time, price, discount } = req.body;
+
+    if (!id || !talent_id || !date || !start_time || !end_time) {
+      return res.status(400).json({
+        status: false,
+        message: 'Required fields missing'
+      });
+    }
+
+    if (start_time >= end_time) {
+      return res.status(400).json({
+        status: false,
+        message: 'End time must be greater than start time'
+      });
+    }
+
+    const availability = await TalentAvailability.findByPk(id, { transaction });
+
+    if (!availability) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: false,
+        message: 'Availability not found'
+      });
+    }
+
+    // 🔴 Prevent overlap with OTHER records
+    const conflict = await TalentAvailability.findOne({
+      where: {
+        talent_id,
+        date,
+        id: { [Op.ne]: id },
+        [Op.and]: [
+          { start_time: { [Op.lt]: end_time } },
+          { end_time: { [Op.gt]: start_time } }
+        ]
+      },
+      transaction
+    });
+
+    if (conflict) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: false,
+        message: 'Updated slot overlaps with an existing slot'
+      });
+    }
+
+    await availability.update(
+      {
+        date,
+        start_time,
+        end_time,
+        price,
+        discount
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.json({
+      status: true,
+      message: 'Availability updated successfully',
+      data: availability
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    return res.status(500).json({
+      status: false,
+      message: 'Failed to update availability',
+      error: error.message
+    });
+  }
+};
+
+exports.createAvailability = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { talent_id, date, start_time, end_time, price, discount } = req.body;
+
+    if (!talent_id || !date || !start_time || !end_time) {
+      return res.status(400).json({
+        status: false,
+        message: 'Required fields missing'
+      });
+    }
+
+    if (start_time >= end_time) {
+      return res.status(400).json({
+        status: false,
+        message: 'End time must be greater than start time'
+      });
+    }
+
+    // 🔴 Check overlapping slots
+    const conflict = await TalentAvailability.findOne({
+      where: {
+        talent_id,
+        date,
+        [Op.and]: [
+          { start_time: { [Op.lt]: end_time } },
+          { end_time: { [Op.gt]: start_time } }
+        ]
+      },
+      transaction
+    });
+
+    if (conflict) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: false,
+        message: 'Availability slot overlaps with an existing slot'
+      });
+    }
+
+    const availability = await TalentAvailability.create(
+      {
+        talent_id,
+        date,
+        start_time,
+        end_time,
+        price,
+        discount
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.json({
+      status: true,
+      message: 'Availability created successfully',
+      data: availability
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    return res.status(500).json({
+      status: false,
+      message: 'Failed to create availability',
+      error: error.message
+    });
+  }
+};
+exports.unblockedandblocked = async (req, res) => {
+  try {
+    const { userId, status } = req.body;
+
+    if (!userId || !status) {
+      return res.status(400).json(
+        sendJson(false, 'userId and status are required')
+      );
+    }
+
+    // Allow only blocked / unblocked
+    if (!['blocked', 'unblocked'].includes(status)) {
+      return res.status(400).json(
+        sendJson(false, 'Invalid status value')
+      );
+    }
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json(
+        sendJson(false, 'User not found')
+      );
+    }
+
+    // Block / Unblock logic
+    if (status === 'blocked') {
+      user.is_verified_by_admin = 0;
+    } else {
+      user.is_verified_by_admin = 1;
+    }
+
+    await user.save();
+
+    return res.json(
+      sendJson(true, `User ${status} successfully`)
+    );
+
+  } catch (error) {
+    console.error('updateUserStatus error:', error);
+    return res.status(500).json(
+      sendJson(false, 'Failed to update user status')
+    );
+  }
+};

@@ -28,6 +28,9 @@ router.post('/bookingdetails',auth , isAdmin , auth , isAdmin , bookingControlle
 router.post('/updateUserStatus',auth , isAdmin , authController.updateUserStatus);
 router.post('/softDeleteUser', auth , isAdmin ,authController.softDeleteUser);
 router.post('/getDashboardCounts', auth , isAdmin ,authController.getDashboardCounts);
+router.post('/updateAvailability', auth , isAdmin ,authController.updateAvailability);
+router.post('/createAvailability', auth , isAdmin ,authController.createAvailability);
+router.post('/unblockedandblocked', auth , isAdmin ,authController.unblockedandblocked);
 
 
 // Protected routes — only logged-in users can create/update/delete
