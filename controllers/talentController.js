@@ -624,6 +624,7 @@ exports.getTalents = async (req, res) => {
         u.username,
         u.email,
         u.phone_number,
+        u.is_verified_by_admin,
         u.status,
         u.deleted_at,
         (
@@ -705,6 +706,7 @@ const formattedTalents = await Promise.all(
         username: row.username,
         email: row.email,
         phone_number: row.phone_number,
+        is_verified_by_admin : row.is_verified_by_admin,
         deleted_at: row.deleted_at,
         status: row.status,
       },
