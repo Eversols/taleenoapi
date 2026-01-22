@@ -350,8 +350,8 @@ exports.loginWithPhone = async (req, res) => {
    
 
     // -------- SEND SMS --------
-    const smsMessage = `Your verification code is ${otp}. It will expire in 10 minutes.`;
-
+    // const smsMessage = `Your verification code is ${otp}. It will expire in 10 minutes.`;
+    const smsMessage = `Your verification code:${otp}  For username For login to Talinoo`;
     const smsResponse = await smsClient.sendSMS(
       smsMessage,
       formattedPhone,
