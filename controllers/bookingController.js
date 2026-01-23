@@ -3769,6 +3769,7 @@ exports.dashboadTop5Bookings = async (req, res) => {
         b.created_at,
         b.time_slot,
         b.status,
+        b.note,
 
         c.full_name AS client_name,
         c.profile_photo AS client_photo,
@@ -3795,6 +3796,7 @@ exports.dashboadTop5Bookings = async (req, res) => {
       time: row.time_slot || '',
       status: row.status || 'pending',
       skill_name: row.skill_name || '',
+      note: row.note || '',
       client_name: row.client_name || '',
       talent_name: row.talent_name || '',
       client_photo: row.client_photo || null,
