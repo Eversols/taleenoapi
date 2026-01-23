@@ -328,6 +328,8 @@ exports.loginWithPhone = async (req, res) => {
     }
     // Generate OTP
      const otp = generateOTP();
+
+      const smsusername = user.username;
     //const otp = "1234";
     const otpExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -347,17 +349,21 @@ exports.loginWithPhone = async (req, res) => {
 
     formattedPhone = '+' + formattedPhone;
 
+
+    let formattedUsername = smsusername.replace(/-(client|talent)$/, '');
+
    
 
     // -------- SEND SMS --------
     // const smsMessage = `Your verification code is ${otp}. It will expire in 10 minutes.`;
-    const smsMessage = `Your verification code:${otp}  For username For login to Talinoo`;
+    const smsMessage = `Your verification code: ${otp}  For ${formattedUsername} For login to Talinoo`;
     const smsResponse = await smsClient.sendSMS(
       smsMessage,
       formattedPhone,
       null
     );
 
+    console.log("Formatted meassage:", smsMessage);
     console.log("Formatted Phone:", formattedPhone);
     console.log("SMS Response:", smsResponse);
 
